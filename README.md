@@ -4,7 +4,7 @@ A Swiss army knife gem for managing and downloading TV shows
 
 ## Installation
 
-    $ gem install eztv
+    $ gem install tvtime
 
 ## Usage
 
