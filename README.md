@@ -1,8 +1,6 @@
 # TVTime
-[![Gem Version](0.0.1)
-[![Code Climate](https://codeclimate.com/github/poulh/tvtime.png)](https://codeclimate.com/github/poulh/tvtime)
 
-A Ruby scraper as a substitution for the catastrophic [EZTV](http://eztv.it/) API. It is not using the RSS feed since it doesn't work well, so it scrapes the search results.
+A Swiss army knife gem for managing and downloading TV shows
 
 ## Installation
 
