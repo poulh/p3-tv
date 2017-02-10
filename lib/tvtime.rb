@@ -4,14 +4,21 @@ require 'eztv'
 module TVTime
 
     class Settings
-
-        def initialize( path = ENV["HOME"] + "/.tvtime" )
+        DEFAULT_PATH = File::expand_path( "~/.tvtime" )
+        def initialize( path = DEFAULT_PATH )
             @values = JSON::parse( File::open( path, 'r' ).read )
+            self[:library_path] = [ self[:library_path], "TVTime" ].join( File::SEPARATOR ) if self[:create_tvtime_dir ]
+            self[:library_path] = File::expand_path( self[:library_path ] )
+            self[:download_path] = File::expand_path( self[:download_path ] )
             self[:series].uniq!
         end
 
         def []( key )
             return @values[ key.to_s ]
+        end
+
+        def []=( key, value )
+            @values[ key.to_s ] = value
         end
     end
 
