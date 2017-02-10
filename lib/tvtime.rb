@@ -124,10 +124,8 @@ module TVTime
 
 
         def create_episode!( series, path )
-            if path.scan( /#{series}/i ).empty? #case insensative
-                if path.scan( /#{series.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
-                    raise "path #{path} does not contain series name #{series}"
-                end
+            unless( path_contains_series?( path, series ) )
+                raise "path #{path} does not contain series name #{series}"
             end
 
             e = nil
@@ -167,6 +165,16 @@ module TVTime
         end
     end
 
+    def self.path_contains_series?( path, series )
+        if path.scan( /#{series}/i ).empty? #case insensative
+            if path.scan( /#{series.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
+                return false
+            end
+        end
+        return true
+    end
+
+
     def self.catalog_downloads!
         settings = Settings.new
         library = Library.new( settings )
@@ -190,12 +198,16 @@ module TVTime
                 eztv = EZTV::Series.new( series )
                 eztv.high_def!
                 eztv.episodes.each do | eztv_episode |
-                    e = Episode.new
-                    e.series = series
-                    e.season = eztv_episode.season
-                    e.episode = eztv_episode.episode_number
-                    unless( library.exists?( e ) )
-                        yield( eztv_episode.magnet_link )
+                    if( path_contains_series?( eztv_episode.raw_title, series ) )
+                        e = Episode.new
+                        e.series = series
+                        e.season = eztv_episode.season
+                        e.episode = eztv_episode.episode_number
+                        unless( library.exists?( e ) )
+                            yield( eztv_episode.magnet_link )
+                        end
+                    else
+                        puts "EZTV #{eztv_episode.raw_title} does not match #{series}" if settings[:verbose]
                     end
                 end
             end
@@ -203,9 +215,14 @@ module TVTime
     end
 
     def self.download_missing!
+        settings = Settings.new
         each_missing_magnet_link do | magnet_link |
-            system( "open #{magnet_link}" )
-            sleep( 5 )
+            cmd = "open #{magnet_link}"
+            puts cmd if settings[:verbose]
+            unless settings[:noop]
+                system( cmd )
+                sleep( 5 )
+            end
         end
     end
 end
