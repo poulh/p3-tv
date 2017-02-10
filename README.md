@@ -2,6 +2,22 @@
 
 A Swiss army knife gem for managing and downloading TV shows
 
+## Create Settings File in home directory named ".tvtime"
+```json
+{
+    "library_path" : "~/Movies",
+    "download_path" : "~/Downloads",
+    "download_regex" : ["[sS](\\d{1,2})[eE](\\d{1,2})" ],
+    "allowed_types" : [ ".mkv", ".avi", ".mp4"],
+    "subtitles" : [ ".srt" ],
+    "verbose" : true,
+    "noop" : true,
+    "series" : [
+	"Orphan Black"
+    ]
+}
+```
+
 ## Installation
 
     $ gem install tvtime
