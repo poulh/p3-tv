@@ -95,7 +95,7 @@ module TVTime
 
             cataloged_path  = episode_path( episode )
             cataloged_dir = File::dirname( cataloged_path )
-            
+
             unless File::exists?( cataloged_dir )
                 FileUtils::mkdir_p( cataloged_dir, { :noop => @settings[:noop], :verbose => @settings[:verbose] } )
             end
@@ -113,9 +113,13 @@ module TVTime
             @settings = settings
         end
 
-        
+
         def create_episode!( series, path )
-            raise "path #{path} does not contain series name #{series}" unless path.index( series )
+            if path.scan( /#{series}/i ).empty? #case insensative
+                if path.scan( /#{series.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
+                    raise "path #{path} does not contain series name #{series}"
+                end
+            end
 
             e = nil
             @settings[:download_regex].each do | regex |
@@ -126,16 +130,16 @@ module TVTime
                     e.season = match_data[1]
                     e.episode = match_data[2]
                     e.path = path
-                    
+
                     raise "cannot determine file type" unless e.type
                     break
                 end
             end
-            
+
             raise "could not create episode #{path}" unless e
             return e
         end
-        
+
         def each_episode
             glob = [ @settings[:download_path], '**/*' ].join( File::SEPARATOR )
             Dir::glob( glob ).each do | path |
@@ -153,12 +157,12 @@ module TVTime
             end
         end
     end
-    
+
     def self.catalog_downloads!
         settings = Settings.new
         library = Library.new( settings )
         downloads = Downloads.new( settings )
-        
+
         downloads.each_episode do | episode |
             begin
                 library.catalog!( episode )
@@ -196,5 +200,3 @@ module TVTime
         end
     end
 end
-
-
