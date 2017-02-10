@@ -6,14 +6,25 @@ A Swiss army knife gem for managing and downloading TV shows
 ```json
 {
     "library_path" : "~/Movies",
+    "create_tvtime_dir" : true,
     "download_path" : "~/Downloads",
-    "download_regex" : ["[sS](\\d{1,2})[eE](\\d{1,2})" ],
+    "delete_duplicate_downloads" : false,
+    "overwrite_duplicates" : true,
     "allowed_types" : [ ".mkv", ".avi", ".mp4"],
     "subtitles" : [ ".srt" ],
     "verbose" : true,
-    "noop" : true,
+    "noop" : false,
     "series" : [
-	"Orphan Black"
+	"Orphan Black",
+	"Fargo",
+	"The Man in the High Castle",
+	"Shameless",
+	"Game of Thrones",
+	"Master of None",
+	"Outlander",
+	"Homeland",
+	"The Americans",
+	"The Walking Dead"
     ]
 }
 ```
