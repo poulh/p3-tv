@@ -11,6 +11,10 @@ module TVTime
             self[:library_path] = File::expand_path( self[:library_path ] )
             self[:download_path] = File::expand_path( self[:download_path ] )
             self[:series].uniq!
+
+            if( self[:overwrite_duplicates] and self[:delete_duplicate_downloads] )
+                raise "you cannot have 'overwrite_duplicates' and 'delete_duplicate_downloads' both set to true"
+            end
         end
 
         def []( key )
@@ -100,10 +104,12 @@ module TVTime
                 FileUtils::mkdir_p( cataloged_dir, { :noop => @settings[:noop], :verbose => @settings[:verbose] } )
             end
 
-            if( File::exists?( cataloged_path ) )
-                puts "file exists: #{cataloged_path}" if @settings[:verbose]
+            if( !File::exists?( cataloged_path ) or @settings[:overwrite_duplicates] )
+                FileUtils::move( episode.path, cataloged_path, { :noop => @settings[:noop], :verbose => @settings[:verbose], :force => true } )
+            elsif( @settings[:delete_duplicate_downloads] )
+                FileUtils::remove( episode.path, { :noop => @settings[:noop], :verbose => @settings[:verbose] } )
             else
-                FileUtils::move( episode.path, cataloged_path, { :noop => @settings[:noop], :verbose => @settings[:verbose] } )
+                puts "file exists. doing nothing: #{cataloged_path}" if @settings[:verbose]
             end
         end
     end
