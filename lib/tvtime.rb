@@ -115,6 +115,9 @@ module TVTime
     end
 
     class Downloads
+
+        REGEX = [ /[sS](\d{1,2})[eE](\d{1,2})/, /(\d{1,2})x(\d{1,2})/ ]
+
         def initialize( settings = Settings.new )
             @settings = settings
         end
@@ -128,8 +131,8 @@ module TVTime
             end
 
             e = nil
-            @settings[:download_regex].each do | regex |
-                match_data = path.match( /#{regex}/)
+            REGEX.each do | regex |
+                match_data = path.match( regex )
                 if( match_data )
                     e = Episode.new
                     e.series = series
