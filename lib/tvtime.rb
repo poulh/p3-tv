@@ -159,6 +159,7 @@ module TVTime
                 #puts e
             end
         end
+        return nil
     end
 
     def self.each_missing_magnet_link
