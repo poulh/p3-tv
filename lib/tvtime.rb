@@ -4,8 +4,10 @@ require 'eztv'
 module TVTime
 
     class Settings
+        attr_accessor :path
         DEFAULT_PATH = File::expand_path( "~/.tvtime" )
         def initialize( path = DEFAULT_PATH )
+            @path = path
             @values = JSON::parse( File::open( path, 'r' ).read )
             self[:library_path] = [ self[:library_path], "TVTime" ].join( File::SEPARATOR ) if self[:create_tvtime_dir ]
             self[:library_path] = File::expand_path( self[:library_path ] )
@@ -93,10 +95,6 @@ module TVTime
             raise "episode path required to catalog" unless episode.path
             raise "cannot determine file type" unless episode.type
 
-            unless( @settings[:allowed_types].include?( episode.type ) or @settings[:subtitles].include?( episode.type ) )
-                raise "file type not allowed. add type to #{@settings.path} 'allowed_types'"
-            end
-
             cataloged_path  = episode_path( episode )
             cataloged_dir = File::dirname( cataloged_path )
 
@@ -116,34 +114,36 @@ module TVTime
 
     class Downloads
 
-        REGEX = [ /[sS](\d{1,2})[eE](\d{1,2})/, /(\d{1,2})x(\d{1,2})/ ]
+        REGEX = [ /[sS](\d{1,2})[eE](\d{1,2})/, #s1e2, s01e02, S1E02, S01E2
+                  /(\d{1,2})x(\d{1,2})/, #1x2, 01x2, 1x02, 01x02
+                  /E(\d{2})/ #E02
+                ]
 
         def initialize( settings = Settings.new )
             @settings = settings
         end
 
 
-        def create_episode!( series, path )
-            unless( path_contains_series?( path, series ) )
-                raise "path #{path} does not contain series name #{series}"
-            end
+        def create_episode!( path )
+            return nil unless( @settings[:allowed_types].include?( File::extname( path ) ) or @settings[:subtitles].include?( File::extname( path ) ) )
 
             e = nil
-            REGEX.each do | regex |
-                match_data = path.match( regex )
-                if( match_data )
-                    e = Episode.new
-                    e.series = series
-                    e.season = match_data[1]
-                    e.episode = match_data[2]
-                    e.path = path
+            @settings[:series].each do | series |
+                next unless( ::TVTime::path_contains_series?( path, series ) )
 
-                    raise "cannot determine file type" unless e.type
-                    break
+                REGEX.each do | regex |
+                    match_data = path.match( regex )
+                    if( match_data )
+                        e = Episode.new
+                        e.series = series
+                        e.season = match_data.size == 2 ? '1' : match_data[1]
+                        e.episode = match_data[ match_data.size - 1 ]
+                        e.path = path
+                        break
+                    end
                 end
+                break if e
             end
-
-            raise "could not create episode #{path}" unless e
             return e
         end
 
@@ -151,15 +151,8 @@ module TVTime
             glob = [ @settings[:download_path], '**/*' ].join( File::SEPARATOR )
             Dir::glob( glob ).each do | path |
                 unless File::directory?( path )
-                    @settings[:series].each do | series |
-                        begin
-                            episode = create_episode!( series, path )
-                            yield( episode )
-                            break
-                        rescue => e
-                            #puts e
-                        end
-                    end
+                    episode = create_episode!( path )
+                    yield( episode ) if episode
                 end
             end
         end
@@ -184,7 +177,7 @@ module TVTime
             begin
                 library.catalog!( episode )
             rescue => e
-                #puts e
+                #  puts e
             end
         end
         return nil
@@ -210,6 +203,8 @@ module TVTime
                         puts "EZTV #{eztv_episode.raw_title} does not match #{series}" if settings[:verbose]
                     end
                 end
+            rescue => e
+                puts e if settings[:verbose]
             end
         end
     end
