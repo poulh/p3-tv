@@ -1,5 +1,6 @@
 require 'json'
 require 'eztv'
+require 'imdb'
 
 module TVTime
 
@@ -29,7 +30,7 @@ module TVTime
     end
 
     class Episode
-        attr_accessor :series, :season, :episode, :path
+        attr_accessor :series, :season, :episode, :title, :air_date, :path
         attr_writer :type
 
         def type
@@ -40,6 +41,10 @@ module TVTime
                 end
             end
             return @type
+        end
+
+        def to_s
+            return { :series => series, :season => season, :episode => episode, :title => title, :air_date => air_date.to_s, :path => path }.to_s
         end
     end
 
@@ -167,7 +172,6 @@ module TVTime
         return true
     end
 
-
     def self.catalog_downloads!
         settings = Settings.new
         library = Library.new( settings )
@@ -183,28 +187,45 @@ module TVTime
         return nil
     end
 
-    def self.each_missing_magnet_link
-        settings = Settings.new
-        library = Library.new( settings )
+    def self.each_episode_from_imdb( settings )
+
         settings[:series].each do | series |
-            begin
-                eztv = EZTV::Series.new( series )
-                eztv.high_def!
-                eztv.episodes.each do | eztv_episode |
-                    if( path_contains_series?( eztv_episode.raw_title, series ) )
-                        e = Episode.new
-                        e.series = series
-                        e.season = eztv_episode.season
-                        e.episode = eztv_episode.episode_number
-                        unless( library.exists?( e ) )
-                            yield( eztv_episode.magnet_link )
+            imdb = Imdb::Serie.new( series['imdb_id'].gsub('tt','') )
+            raise "bad imdb_id: #{series}" unless imdb
+            1.upto( imdb.seasons.size ) do | season |
+                1.upto( imdb.season( season ).episodes.size ) do | episode |
+                    e = Episode.new
+                    e.series = series['title']
+                    e.season = season
+                    e.episode = episode
+
+                    imdb_episode = imdb.season( season ).episode( episode )
+                    if( imdb_episode ) # this comes back nil sometimes
+                        e.title = imdb_episode.title
+                        begin
+                            # sometimes the dates that come back are bad
+                            e.air_date = Date::parse( imdb_episode.air_date )
+                            yield( e )
+                        rescue
                         end
                     else
-                        puts "EZTV #{eztv_episode.raw_title} does not match #{series}" if settings[:verbose]
+                        puts "invalid episode: #{series} #{season} #{episode}" if settings[:verbose]
                     end
                 end
-            rescue => e
-                puts e if settings[:verbose]
+            end
+        end
+    end
+
+    def self.each_missing_episode
+        settings = Settings.new
+        library = Library.new( settings )
+        today = Date::today
+
+        each_episode_from_imdb( settings ) do | episode |
+            unless( library.exists?( episode ) )
+                if( episode.air_date <= today )
+                    yield( episode )
+                end
             end
         end
     end
