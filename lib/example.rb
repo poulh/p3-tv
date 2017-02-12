@@ -2,7 +2,5 @@
 
 require_relative 'tvtime'
 
-#TVTime::catalog_downloads!
-TVTime::each_missing_episode do | episode |
-    puts episode
-end
+TVTime::catalog_downloads!
+TVTime::download_missing!
