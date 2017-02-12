@@ -15,16 +15,13 @@ A Swiss army knife gem for managing and downloading TV shows
     "verbose" : true,
     "noop" : false,
     "series" : [
-	"Orphan Black",
-	"Fargo",
-	"The Man in the High Castle",
-	"Shameless",
-	"Game of Thrones",
-	"Master of None",
-	"Outlander",
-	"Homeland",
-	"The Americans",
-	"The Walking Dead"
+	{"title":"Outlander","imdb_id":"tt3006802"},
+	{"title":"The Walking Dead","imdb_id":"tt1520211"},
+	{"title":"The Night Manager","imdb_id":"tt1399664"},
+	{"title":"24 Legacy","imdb_id":"tt5345490"},
+	{"title":"Black Sails","imdb_id":"tt2375692"},
+	{"title":"Band of Brothers","imdb_id":"tt0185906"},
+	{"title":"Game of Thrones","imdb_id":"tt0944947"}
     ]
 }
 ```
