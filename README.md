@@ -27,8 +27,13 @@ A Swiss army knife gem for managing and downloading TV shows
 ```
 
 ## Installation
-
-    $ gem install tvtime
+    $ # we have to manually install eztv gem until i am added as owner
+    $ git clone https://github.com/poulh/eztv.git
+    $ cd eztv
+    $ gem build eztv.gemspec
+    $ sudo gem install eztv-0.0.6.gem
+    $ # this gem is easy
+    $ sudo gem install tvtime
 
 ## Usage
 
