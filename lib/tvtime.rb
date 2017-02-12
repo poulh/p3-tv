@@ -1,15 +1,54 @@
 require 'json'
 require 'eztv'
 require 'imdb'
+require 'tvdb_party'
 
 module TVTime
 
     class Settings
         attr_accessor :path
         DEFAULT_PATH = File::expand_path( "~/.tvtime" )
+        DEFAULTS = {
+            :library_path => '~/Movies',
+            :download_path => '~/Downloads',
+            :delete_duplicate_downloads => false,
+            :overwrite_duplicates => false,
+            :allowed_types => ['.avi', '.mkv', '.mp4'],
+            :subtitles => ['.srt'],
+            :verbose => false,
+            :dry_run => false,
+            :series => []
+        }
+
+        def self.exists?( path = DEFAULT_PATH )
+            return File::exists?( path )
+        end
+
+        def self.create_default!( path = DEFAULT_PATH )
+            raise "a settings file already exists. please delete #{path} first" if exists?( path )
+            settings = Settings.new( path )
+            DEFAULTS.each do | key, value |
+                settings[ key ] = value
+            end
+            settings.save!
+        end
+
+        def self.set!( key, value, path = DEFAULT_PATH )
+            settings = Settings.new( path )
+            settings[ key ] = value
+            settings.save!
+        end
+
         def initialize( path = DEFAULT_PATH )
             @path = path
-            @values = JSON::parse( File::open( path, 'r' ).read )
+            @values = {}
+
+            return unless File::exists?( @path )
+
+            f = File::open( @path, 'r' )
+            @values = JSON::parse( f.read, :symbolize_names => true )
+            f.close
+
             self[:library_path] = [ self[:library_path], "TVTime" ].join( File::SEPARATOR ) if self[:create_tvtime_dir ]
             self[:library_path] = File::expand_path( self[:library_path ] )
             self[:download_path] = File::expand_path( self[:download_path ] )
@@ -18,14 +57,26 @@ module TVTime
             if( self[:overwrite_duplicates] and self[:delete_duplicate_downloads] )
                 raise "you cannot have 'overwrite_duplicates' and 'delete_duplicate_downloads' both set to true"
             end
+
         end
 
         def []( key )
-            return @values[ key.to_s ]
+            return @values[ key ]
         end
 
         def []=( key, value )
-            @values[ key.to_s ] = value
+            @values[ key ] = value
+        end
+
+        def add_series!( series )
+            self[:series] << series
+            self[:series].uniq!
+        end
+
+        def save!
+            f = File::open( @path, 'w' )
+            f.puts( JSON::pretty_generate( @values ) )
+            f.close
         end
     end
 
@@ -104,13 +155,13 @@ module TVTime
             cataloged_dir = File::dirname( cataloged_path )
 
             unless File::exists?( cataloged_dir )
-                FileUtils::mkdir_p( cataloged_dir, { :noop => @settings[:noop], :verbose => @settings[:verbose] } )
+                FileUtils::mkdir_p( cataloged_dir, { :noop => @settings[:dry_run], :verbose => @settings[:verbose] } )
             end
 
             if( !File::exists?( cataloged_path ) or @settings[:overwrite_duplicates] )
-                FileUtils::move( episode.path, cataloged_path, { :noop => @settings[:noop], :verbose => @settings[:verbose], :force => true } )
+                FileUtils::move( episode.path, cataloged_path, { :noop => @settings[:dry_run], :verbose => @settings[:verbose], :force => true } )
             elsif( @settings[:delete_duplicate_downloads] )
-                FileUtils::remove( episode.path, { :noop => @settings[:noop], :verbose => @settings[:verbose] } )
+                FileUtils::remove( episode.path, { :noop => @settings[:dry_run], :verbose => @settings[:verbose] } )
             else
                 puts "file exists. doing nothing: #{cataloged_path}" if @settings[:verbose]
             end
@@ -134,7 +185,7 @@ module TVTime
 
             e = nil
             @settings[:series].each do | series |
-                next unless( ::TVTime::path_contains_series?( path, series['title'] ) )
+                next unless( ::TVTime::path_contains_series?( path, series[:title] ) )
 
                 REGEX.each do | regex |
                     match_data = path.match( regex )
@@ -177,15 +228,27 @@ module TVTime
             @settings = settings
         end
 
+        def find_series( title )
+            tvdb = TvdbParty::Search.new( nil ) #you don't need a Tvdb API key for basic search
+
+            results = tvdb.search( title )
+
+            #assume the more-recent show first
+            results.sort!{ | a,b |  b['FirstAired'] <=> a['FirstAired'] }
+            results.collect!{ | r | { :title => r['SeriesName'], :imdb_id => r['IMDB_ID'] } }
+            results.reject!{ | r | r[:imdb_id] == nil }
+            return results
+        end
+
         def each_episode_from_imdb
 
             @settings[:series].each do | series |
-                imdb = Imdb::Serie.new( series['imdb_id'].gsub('tt','') )
+                imdb = Imdb::Serie.new( series[:imdb_id].gsub('tt','') )
                 raise "bad imdb_id: #{series}" unless imdb
                 1.upto( imdb.seasons.size ) do | season |
                     1.upto( imdb.season( season ).episodes.size ) do | episode |
                         e = Episode.new
-                        e.series = series['title']
+                        e.series = series[:title]
                         e.season = season
                         e.episode = episode
 
@@ -195,10 +258,10 @@ module TVTime
                             begin
                                 # sometimes the dates that come back are bad
                                 e.air_date = Date::parse( imdb_episode.air_date )
-                        rescue
+                            rescue
                             end
 
-                            yield( e )
+                            yield( e ) if e.air_date
 
                         else
                             puts "invalid episode: #{series} #{season} #{episode}" if settings[:verbose]
@@ -227,7 +290,6 @@ module TVTime
             each_missing_episode( library ) do | episode |
                 puts episode
                 unless eztv.has_key?( episode.series )
-                    puts "eztv searching for #{episode.series}"
                     ez = EZTV::Series.new( episode.series )
                     ez.high_def!
                     eztv[ episode.series ] = ez
@@ -244,6 +306,23 @@ module TVTime
         end
     end
 
+    def self.add_series!( title )
+        settings = Settings.new
+        search = Search.new( settings )
+        puts "searching"
+        results = search.find_series( title )
+        puts "searching2"
+        puts results
+        settings.add_series!( results[0] )
+        settings.save!
+    end
+
+    def self.enable_test_mode!( enable, path = Settings::DEFAULT_PATH )
+        Settings::set!( :dry_run, enable )
+        Settings::set!( :verbose, enable )
+    end
+
+
     def self.catalog_downloads!
         settings = Settings.new
         library = Library.new( settings )
@@ -259,9 +338,6 @@ module TVTime
         return nil
     end
 
-
-
-
     def self.download_missing!
         settings = Settings.new
         search = Search.new( settings )
@@ -270,10 +346,12 @@ module TVTime
         search.each_missing_magnet_link( library ) do | magnet_link |
             cmd = "open #{magnet_link}"
             puts cmd if settings[:verbose]
-            unless settings[:noop]
+            unless settings[:dry_run]
                 system( cmd )
                 sleep( 5 )
             end
         end
     end
+
+
 end
