@@ -1,4 +1,5 @@
 # TVTime
+[![Gem Version](https://badge.fury.io/rb/tvtime.svg)](http://badge.fury.io/rb/tvtime)
 
 A Swiss army knife gem for managing and downloading TV shows
 
