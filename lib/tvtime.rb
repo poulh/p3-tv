@@ -216,7 +216,7 @@ module TVTime
 
     def self.path_contains_series?( path, title )
         if path.scan( /#{title}/i ).empty? #case insensative
-            if path.scan( /#{series.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
+            if path.scan( /#{title.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
                 return false
             end
         end
@@ -288,7 +288,6 @@ module TVTime
             eztv = {}
 
             each_missing_episode( library ) do | episode |
-                puts episode
                 unless eztv.has_key?( episode.series )
                     ez = EZTV::Series.new( episode.series )
                     ez.high_def!
@@ -309,9 +308,9 @@ module TVTime
     def self.add_series!( title )
         settings = Settings.new
         search = Search.new( settings )
-        puts "searching"
+
         results = search.find_series( title )
-        puts "searching2"
+
         puts results
         settings.add_series!( results[0] )
         settings.save!
@@ -323,8 +322,7 @@ module TVTime
     end
 
 
-    def self.catalog_downloads!
-        settings = Settings.new
+    def self.catalog_downloads!( settings = Settings.new )
         library = Library.new( settings )
         downloads = Downloads.new( settings )
 
@@ -338,8 +336,7 @@ module TVTime
         return nil
     end
 
-    def self.download_missing!
-        settings = Settings.new
+    def self.download_missing!( settings = Settings.new )
         search = Search.new( settings )
         library = Library.new( settings )
 

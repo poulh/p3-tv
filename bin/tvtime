@@ -1,0 +1,77 @@
+#!/usr/bin/ruby
+
+require 'highline'
+require 'tvtime'
+
+# Basic usage
+
+TVTime::Settings::create_default! unless TVTime::Settings::exists?
+
+settings = TVTime::Settings.new
+search = TVTime::Search.new( settings )
+cli = HighLine.new
+
+begin
+    cli.say("\n")
+    cli.say("\n")
+    cli.say("\n")
+    cli.choose do | main_menu |
+
+        main_menu.prompt = "What do you want to do?"
+
+
+        main_menu.choice("Search for TV Series") do
+            title = cli.ask "What series would you like to search for?"
+            results = search.find_series( title )
+            cli.choose do | results_menu |
+                results_menu.prompt = "Which series would you like to add?"
+                results.each do | series |
+                    results_menu.choice( series[:title] + ' : ' + series[:imdb_id] ) do
+                        settings.add_series!( series )
+                        settings.save!
+                    end
+                end
+            end
+        end
+
+
+        main_menu.choice("List TV Series") do
+            settings[:series].each do | series |
+                cli.say( series[:title] + ' : ' + series[:imdb_id] )
+            end
+        end
+
+
+        main_menu.choice("Download Missing Episodes") do
+            confirm = cli.ask("This command will open any missing magnet links. Are you sure? [Y/N]") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
+            TVTime::download_missing!( settings ) if confirm.downcase == 'y'
+        end
+
+
+        main_menu.choice("Catalog Downloads") do
+            confirm = cli.ask("This command will move any episodes from your download dir to your Library. Are you sure? [Y/N] ") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
+            TVTime::catalog_downloads!( settings ) if confirm.downcase == 'y'
+        end
+
+        main_menu.choice("Update Directories") do
+            cli.choose do | dir_menu |
+                {:library_path => "Library", :download_path => "Download" }.each do | k, v |
+                    dir_menu.choice( v ) do
+                        path = cli.ask("Enter Path")
+                        TVTime::Settings::set!( k, path )
+                    end
+                end
+            end
+        end
+
+        main_menu.choice("Test Mode") do
+            confirm = cli.ask("Enable or Disable? [E/D]") { |yn| yn.limit = 1, yn.validate = /[ed]/i }
+            TVTime::enable_test_mode!( confirm.downcase == 'e' )
+        end
+
+
+        main_menu.choice("quit") do
+            exit(1)
+        end
+    end
+end while true
