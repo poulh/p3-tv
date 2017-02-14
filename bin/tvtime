@@ -53,19 +53,24 @@ begin
             TVTime::catalog_downloads!( settings ) if confirm.downcase == 'y'
         end
 
-        main_menu.choice("Update Directories") do
+        main_menu.choice("Manage Directories") do
             cli.choose do | dir_menu |
                 {:library_path => "Library", :download_path => "Download" }.each do | k, v |
-                    dir_menu.choice( v ) do
-                        path = cli.ask("Enter Path")
+                    dir_menu.choice( "Update #{v} Path" ) do
+                        path = cli.ask("Enter New Path")
                         TVTime::Settings::set!( k, path )
+                    end
+                    dir_menu.choice( "Open #{v} Path" ) do
+                        cmd = "open '#{settings[k]}'"
+                        puts cmd
+                        system( cmd )
                     end
                 end
             end
         end
 
         main_menu.choice("Test Mode") do
-            confirm = cli.ask("Enable or Disable? [E/D]") { |yn| yn.limit = 1, yn.validate = /[ed]/i }
+            confirm = cli.ask("Enable or Disable Test Mode? [E/D]") { |yn| yn.limit = 1, yn.validate = /[ed]/i }
             TVTime::enable_test_mode!( confirm.downcase == 'e' )
         end
 

@@ -1,18 +1,27 @@
 # TVTime
 [![Gem Version](https://badge.fury.io/rb/tvtime.svg)](http://badge.fury.io/rb/tvtime)
 
-A Swiss army knife gem for managing and downloading TV shows
+Organize and rename your TV Shows. Automatically find links to missing shows. Includes Command-Line Utility
 
 ## Installation
-    $ # we have to manually install eztv gem until i am added as owner
-    $ git clone https://github.com/poulh/eztv.git
-    $ cd eztv
-    $ gem build eztv.gemspec
-    $ sudo gem install eztv-0.0.6.gem
-    $ # this gem is easy
     $ sudo gem install tvtime
 
 ## Usage
+
+Run 'tvtime' at the command prompt and choose from the menu
+
+    $ tvtime
+    1. Search for TV Series
+    2. List TV Series
+    3. Download Missing Episodes
+    4. Catalog Downloads
+    5. Manage Directories
+    6. Test Mode
+    7. quit
+    What do you want to do?
+
+
+## Development Usage
 
 Fetch a series and get all the magnet links:
 ```ruby

@@ -4,11 +4,11 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = "tvtime"
-  spec.version       = "0.2.1"
+  spec.version       = "0.2.2"
   spec.authors       = ["Poul Hornsleth"]
   spec.email         = ["poulh@umich.edu"]
   spec.summary       = "TV Show Organizer and Renamer"
-  spec.description   = "Organize and rename your TV Shows. Automatically find links to missing shows.  See homepage for instructions on installing eztv gem"
+  spec.description   = "Organize and rename your TV Shows. Automatically find links to missing shows. Includes Command-Line Utility"
   spec.homepage      = "https://github.com/poulh/tvtime"
   spec.license       = "MIT"
 

@@ -246,13 +246,15 @@ module TVTime
                 imdb = Imdb::Serie.new( series[:imdb_id].gsub('tt','') )
                 raise "bad imdb_id: #{series}" unless imdb
                 1.upto( imdb.seasons.size ) do | season |
+                    imdb_season = imdb.season( season )
                     1.upto( imdb.season( season ).episodes.size ) do | episode |
                         e = Episode.new
                         e.series = series[:title]
                         e.season = season
                         e.episode = episode
 
-                        imdb_episode = imdb.season( season ).episode( episode )
+
+                        imdb_episode = imdb_season.episode( episode )
                         if( imdb_episode ) # this comes back nil sometimes
                             e.title = imdb_episode.title
                             begin
