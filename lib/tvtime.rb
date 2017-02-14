@@ -15,6 +15,7 @@ module TVTime
             :overwrite_duplicates => false,
             :allowed_types => ['.avi', '.mkv', '.mp4'],
             :subtitles => ['.srt'],
+            :high_def => true,
             :verbose => false,
             :dry_run => false,
             :series => []
@@ -120,14 +121,6 @@ module TVTime
             return false
         end
 
-        def episode_name( episode )
-            #moves titles that begin with 'The' to the end
-            match = /^The (.*)/.match( episode.series )
-            if( match )
-                return "#{match[1]}, The"
-            end
-            return episode.series
-        end
 
         def format_season( episode )
             return episode.season.to_s.rjust( 2, '0' )
@@ -139,11 +132,11 @@ module TVTime
 
 
         def episode_path( episode )
-            formatted_name = episode_name( episode )
+            formatted_title = ::TVTime::format_title( episode.series )
             return [ @settings[:library_path],
-                     formatted_name,
+                     formatted_title,
                      "Season #{format_season( episode )}",
-                     "#{formatted_name} S#{format_season( episode )}E#{format_episode( episode )}" + ( episode.type or '.*' )
+                     "#{formatted_title} S#{format_season( episode )}E#{format_episode( episode )}" + ( episode.type or '.*' )
                    ].join( File::SEPARATOR )
         end
 
@@ -214,9 +207,20 @@ module TVTime
         end
     end
 
+    def self.format_title( title )
+        rval = title.gsub("'",'')
+        #moves titles that begin with 'The' to the end
+        match = /^The (.*)/.match( rval )
+        if( match )
+            return "#{match[1]}, The"
+        end
+        return rval
+    end
+
     def self.path_contains_series?( path, title )
-        if path.scan( /#{title}/i ).empty? #case insensative
-            if path.scan( /#{title.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
+        formatted_title = ::TVTime::format_title( title )
+        if path.scan( /#{formatted_title}/i ).empty? #case insensative
+            if path.scan( /#{formatted_title.gsub(' ','.')}/i ).empty? # Titles.With.Periods.Instead.Of.Spaces
                 return false
             end
         end
@@ -291,8 +295,8 @@ module TVTime
 
             each_missing_episode( library ) do | episode |
                 unless eztv.has_key?( episode.series )
-                    ez = EZTV::Series.new( episode.series )
-                    ez.high_def!
+                    ez = EZTV::Series.new( ::TVTime::format_title( episode.series ) )
+                    ez.high_def! if @settings[:high_def]
                     eztv[ episode.series ] = ez
                 end
 
