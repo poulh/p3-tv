@@ -191,7 +191,7 @@ module TVTime
                     match_data = path.match( regex )
                     if( match_data )
                         e = Episode.new
-                        e.series = series
+                        e.series = series[:title]
                         e.season = match_data.size == 2 ? '1' : match_data[1]
                         e.episode = match_data[ match_data.size - 1 ]
                         e.path = path
@@ -332,7 +332,7 @@ module TVTime
             begin
                 library.catalog!( episode )
             rescue => e
-                #  puts e
+#                puts e if settings[:verbose]
             end
         end
         return nil

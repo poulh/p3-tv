@@ -7,14 +7,16 @@ require 'tvtime'
 
 TVTime::Settings::create_default! unless TVTime::Settings::exists?
 
-settings = TVTime::Settings.new
-search = TVTime::Search.new( settings )
+
 cli = HighLine.new
 
 begin
+    settings = TVTime::Settings.new
+
     cli.say("\n")
     cli.say("\n")
     cli.say("\n")
+
     cli.choose do | main_menu |
 
         main_menu.prompt = "What do you want to do?"
@@ -22,6 +24,7 @@ begin
 
         main_menu.choice("Search for TV Series") do
             title = cli.ask "What series would you like to search for?"
+            search = TVTime::Search.new( settings )
             results = search.find_series( title )
             cli.choose do | results_menu |
                 results_menu.prompt = "Which series would you like to add?"
