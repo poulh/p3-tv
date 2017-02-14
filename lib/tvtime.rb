@@ -74,6 +74,10 @@ module TVTime
             self[:series].uniq!
         end
 
+        def remove_series!( series )
+            self[:series].reject!{|s| s[:imdb_id] == series[:imdb_id] }
+        end
+
         def save!
             f = File::open( @path, 'w' )
             f.puts( JSON::pretty_generate( @values ) )
