@@ -148,9 +148,6 @@ module TVTime
         end
 
         def catalog!( episode )
-            raise "episode path required to catalog" unless episode.path
-            raise "cannot determine file type" unless episode.type
-
             cataloged_path  = episode_path( episode )
             cataloged_dir = File::dirname( cataloged_path )
 
@@ -181,8 +178,6 @@ module TVTime
 
 
         def create_episode!( path )
-            return nil unless( @settings[:allowed_types].include?( File::extname( path ) ) or @settings[:subtitles].include?( File::extname( path ) ) )
-
             e = nil
             @settings[:series].each do | series |
                 next unless( ::TVTime::path_contains_series?( path, series[:title] ) )
@@ -203,13 +198,28 @@ module TVTime
             return e
         end
 
-        def each_episode
+        def allowed_type?( path )
+            return ( @settings[:allowed_types].include?( File::extname( path ) ) or @settings[:subtitles].include?( File::extname( path ) ) )
+        end
+
+        def each_file
             glob = [ @settings[:download_path], '**/*' ].join( File::SEPARATOR )
             Dir::glob( glob ).each do | path |
-                unless File::directory?( path )
-                    episode = create_episode!( path )
-                    yield( episode ) if episode
-                end
+                yield( path )
+            end
+        end
+
+        def each_allowed_file
+            each_file do | path |
+                next unless allowed_type?( path )
+                yield( path )
+            end
+        end
+
+        def each_episode
+            each_allowed_file do | path |
+                episode = create_episode!( path )
+                yield( episode ) if episode
             end
         end
     end
@@ -278,7 +288,7 @@ module TVTime
                             yield( e ) if e.air_date
 
                         else
-                            puts "invalid episode: #{series} #{season} #{episode}" if settings[:verbose]
+                            puts "invalid episode: #{series} #{season} #{episode}" if @settings[:verbose]
                         end
                     end
                 end
@@ -330,22 +340,34 @@ module TVTime
         settings.save!
     end
 
-    def self.enable_test_mode!( enable, path = Settings::DEFAULT_PATH )
+    def self.test_mode_enabled?
+        settings = Settings.new
+        return ( settings[:verbose] and settings[:dry_run] )
+    end
+
+    def self.enable_test_mode!( enable )
         Settings::set!( :dry_run, enable )
         Settings::set!( :verbose, enable )
     end
 
 
-    def self.catalog_downloads!( settings = Settings.new )
-        library = Library.new( settings )
+    def self.catalog_file!( path, settings = Settings.new )
         downloads = Downloads.new( settings )
+        return if downloads.allowed_type?( path )
+        library = Library.new( settings )
+
+        episode = downloads.create_episode!( path )
+
+        library.catalog!( episode ) if episode
+        return nil
+    end
+
+    def self.catalog_downloads!( settings = Settings.new )
+        downloads = Downloads.new( settings )
+        library = Library.new( settings )
 
         downloads.each_episode do | episode |
-            begin
-                library.catalog!( episode )
-            rescue => e
-#                puts e if settings[:verbose]
-            end
+            library.catalog!( episode )
         end
         return nil
     end

@@ -5,6 +5,15 @@ require 'tvtime'
 
 # Basic usage
 
+Signal::trap("INT") do
+    exit
+end
+
+Signal::trap("TERM") do
+    exit
+end
+
+
 TVTime::Settings::create_default! unless TVTime::Settings::exists?
 
 
@@ -98,9 +107,8 @@ begin
         end
 
 
-        main_menu.choice("Test Mode") do
-            confirm = cli.ask("Enable or Disable Test Mode? [E/D]") { |yn| yn.limit = 1, yn.validate = /[ed]/i }
-            TVTime::enable_test_mode!( confirm.downcase == 'e' )
+        main_menu.choice("Toggle Test Mode ( Currently #{TVTime::test_mode_enabled? ? 'Enabled' : 'Disabled'} )") do
+            TVTime::enable_test_mode!( !TVTime::test_mode_enabled? )
         end
 
 
