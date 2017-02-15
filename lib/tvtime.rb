@@ -1,7 +1,10 @@
+require 'fileutils'
 require 'json'
+
 require 'eztv'
 require 'imdb'
 require 'tvdb_party'
+
 
 module TVTime
 
@@ -212,12 +215,12 @@ module TVTime
     end
 
     def self.format_title( title )
-        rval = title.gsub("'",'')
-        #moves titles that begin with 'The' to the end
-        match = /^The (.*)/.match( rval )
-        if( match )
-            return "#{match[1]}, The"
+
+        rval = title
+        ["'",'(',')'].each do | remove |
+            rval.gsub!( remove, '')
         end
+
         return rval
     end
 
@@ -240,6 +243,7 @@ module TVTime
             tvdb = TvdbParty::Search.new( nil ) #you don't need a Tvdb API key for basic search
 
             results = tvdb.search( title )
+            results.select!{|r| r['FirstAired'] } #must have this field
 
             #assume the more-recent show first
             results.sort!{ | a,b |  b['FirstAired'] <=> a['FirstAired'] }

@@ -49,6 +49,8 @@ begin
                                 settings.save!
                             end
                         end
+                        results_menu.choice( "cancel" ) do
+                        end
                     end
                 end
 
@@ -62,6 +64,9 @@ begin
                                 settings.remove_series!( series ) if confirm.downcase == 'y'
                                 settings.save!
                             end
+                        end
+
+                        delete_menu.choice( "cancel" ) do
                         end
                     end
                 end
