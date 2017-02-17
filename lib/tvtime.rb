@@ -282,7 +282,7 @@ module TVTime
             return results
         end
 
-        def each_episodes_from_imdb
+        def each_episode_from_imdb
             @settings[:series].each do | series |
                 create_episodes_from_imdb( series ) do | episode |
                     yield( episode )
