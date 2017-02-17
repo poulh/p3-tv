@@ -1,0 +1,43 @@
+#!/usr/bin/ruby
+
+require 'tvtime'
+
+settings = TVTime::Settings.new
+
+case ARGV[0]
+when 'series'
+    puts settings[:series].to_json
+when 'search'
+    search = TVTime::Search.new( settings )
+    results = search.find_series( ARGV[1] )
+    puts results.to_json
+when 'search_and_add'
+    search = TVTime::Search.new( settings )
+    results = search.find_series( ARGV[1] )
+    results = results.select{|r| r[:title] == ARGV[1] }
+    if( results.size == 1 )
+        settings.add_series!( results[0] )
+        settings.save!
+    end
+when 'remove_series'
+    results = settings[:series].select{|r| r[:title] == ARGV[1] }
+    if( results.size == 1 )
+        settings.remove_series!( results[0] )
+        settings.save!
+    end
+when 'search_and_list'
+
+    search = TVTime::Search.new( settings )
+    results = search.find_series( ARGV[1] )
+    results = results.select{|r| r[:title] == ARGV[1] }
+    if( results.size == 1 )
+        library = TVTime::Library.new( settings )
+
+        episodes = []
+        search.create_episodes_from_imdb( results[0] ) do | episode |
+            episode.path = library.episode_path( episode )
+            episodes << episode
+        end
+        puts episodes.to_json
+    end
+end

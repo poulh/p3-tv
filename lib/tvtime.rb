@@ -10,7 +10,8 @@ module TVTime
 
     class Settings
         attr_accessor :path
-        DEFAULT_PATH = File::expand_path( "~/.tvtime" )
+        DEPRECATED_PATH = File::expand_path( "~/.tvtime" )
+        DEFAULT_PATH = File::expand_path( "~/.tvtime/tvtime" )
         DEFAULTS = {
             :library_path => '~/Movies',
             :download_path => '~/Downloads',
@@ -25,11 +26,20 @@ module TVTime
         }
 
         def self.exists?( path = DEFAULT_PATH )
-            return File::exists?( path )
+            if( File::directory?( DEPRECATED_PATH ) )
+                return File::exists?( path )
+            else
+                if( File::exists?( DEPRECATED_PATH ) )
+                    puts "please move your settings file #{DEPRECATED_PATH} to #{DEFAULT_PATH}"
+                    return false
+                end
+            end
         end
 
         def self.create_default!( path = DEFAULT_PATH )
             raise "a settings file already exists. please delete #{path} first" if exists?( path )
+
+            FileUtils::mkdir_p( File::dirname( path ) )
             settings = Settings.new( path )
             DEFAULTS.each do | key, value |
                 settings[ key ] = value
@@ -48,6 +58,8 @@ module TVTime
             @values = {}
 
             return unless File::exists?( @path )
+
+            FileUtils::mkdir_p( File::dirname( @path ) )
 
             f = File::open( @path, 'r' )
             @values = JSON::parse( f.read, :symbolize_names => true )
@@ -102,8 +114,16 @@ module TVTime
             return @type
         end
 
+        def to_json(*a)
+            return to_h.to_json(*a)
+        end
+
+        def to_h
+            return { :series => series, :season => season, :episode => episode, :title => title, :air_date => air_date.to_s, :path => path }
+        end
+
         def to_s
-            return { :series => series, :season => season, :episode => episode, :title => title, :air_date => air_date.to_s, :path => path }.to_s
+            return to_h.to_s
         end
     end
 
@@ -160,7 +180,7 @@ module TVTime
             elsif( @settings[:delete_duplicate_downloads] )
                 FileUtils::remove( episode.path, { :noop => @settings[:dry_run], :verbose => @settings[:verbose] } )
             else
-                puts "file exists. doing nothing: #{cataloged_path}" if @settings[:verbose]
+                STDERR.puts "file exists. doing nothing: #{cataloged_path}" if @settings[:verbose]
             end
         end
     end
@@ -262,34 +282,38 @@ module TVTime
             return results
         end
 
-        def each_episode_from_imdb
-
+        def each_episodes_from_imdb
             @settings[:series].each do | series |
-                imdb = Imdb::Serie.new( series[:imdb_id].gsub('tt','') )
-                raise "bad imdb_id: #{series}" unless imdb
-                1.upto( imdb.seasons.size ) do | season |
-                    imdb_season = imdb.season( season )
-                    1.upto( imdb.season( season ).episodes.size ) do | episode |
-                        e = Episode.new
-                        e.series = series[:title]
-                        e.season = season
-                        e.episode = episode
+                create_episodes_from_imdb( series ) do | episode |
+                    yield( episode )
+                end
+            end
+        end
 
+        def create_episodes_from_imdb( series )
+            imdb = Imdb::Serie.new( series[:imdb_id].gsub('tt','') )
+            raise "bad imdb_id: #{series}" unless imdb
+            1.upto( imdb.seasons.size ) do | season |
+                imdb_season = imdb.season( season )
+                1.upto( imdb.season( season ).episodes.size ) do | episode |
+                    e = Episode.new
+                    e.series = series[:title]
+                    e.season = season
+                    e.episode = episode
 
-                        imdb_episode = imdb_season.episode( episode )
-                        if( imdb_episode ) # this comes back nil sometimes
-                            e.title = imdb_episode.title
-                            begin
-                                # sometimes the dates that come back are bad
-                                e.air_date = Date::parse( imdb_episode.air_date )
-                            rescue
-                            end
-
-                            yield( e ) if e.air_date
-
-                        else
-                            puts "invalid episode: #{series} #{season} #{episode}" if @settings[:verbose]
+                    imdb_episode = imdb_season.episode( episode )
+                    if( imdb_episode ) # this comes back nil sometimes
+                        e.title = imdb_episode.title
+                        begin
+                            # sometimes the dates that come back are bad
+                            e.air_date = Date::parse( imdb_episode.air_date )
+                        rescue
                         end
+
+                        yield( e ) if e.air_date
+
+                    else
+                        STDERR.puts "invalid episode: #{series} #{season} #{episode}" if @settings[:verbose]
                     end
                 end
             end
@@ -323,7 +347,7 @@ module TVTime
                 if eztv_episode
                     yield( eztv_episode.magnet_link )
                 else
-                    puts "could not find #{episode} on eztv" if @settings[:verbose]
+                    STDERR.puts "could not find #{episode} on eztv" if @settings[:verbose]
                 end
             end
         end
@@ -335,7 +359,6 @@ module TVTime
 
         results = search.find_series( title )
 
-        puts results
         settings.add_series!( results[0] )
         settings.save!
     end
@@ -355,9 +378,7 @@ module TVTime
         downloads = Downloads.new( settings )
         return if downloads.allowed_type?( path )
         library = Library.new( settings )
-
         episode = downloads.create_episode!( path )
-
         library.catalog!( episode ) if episode
         return nil
     end
