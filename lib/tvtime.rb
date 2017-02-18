@@ -2,9 +2,28 @@ require 'fileutils'
 require 'json'
 
 require 'eztv'
-require 'imdb'
 require 'tvdb_party'
 
+
+# module TvdbParty
+#     class Series
+#         def to_h
+#             hash = {}
+#             self.instance_variables.each do | var |
+#                 #turn episode object into hash
+#                 v = self.instance_variable_get( var )
+#                 hash[ var.to_s.gsub('@','').to_sym ] = v
+#             end
+#             hash.delete(:client)
+#             return hash
+#         end
+
+#     end
+
+#     class Episode
+
+#     end
+# end
 
 module TVTime
 
@@ -85,12 +104,12 @@ module TVTime
         end
 
         def add_series!( series )
-            self[:series] << series
+            self[:series] << series.to_h
             self[:series].uniq!
         end
 
-        def remove_series!( series )
-            self[:series].reject!{|s| s[:imdb_id] == series[:imdb_id] }
+        def remove_series!( seriesid )
+            self[:series].reject!{|s| s[:id] == seriesid }
         end
 
         def save!
@@ -148,7 +167,6 @@ module TVTime
             return false
         end
 
-
         def format_season( episode )
             return episode.season.to_s.rjust( 2, '0' )
         end
@@ -200,13 +218,13 @@ module TVTime
         def create_episode!( path )
             e = nil
             @settings[:series].each do | series |
-                next unless( ::TVTime::path_contains_series?( path, series[:title] ) )
+                next unless( ::TVTime::path_contains_series?( path, series[:name] ) )
 
                 REGEX.each do | regex |
                     match_data = path.match( regex )
                     if( match_data )
                         e = Episode.new
-                        e.series = series[:title]
+                        e.series = series[:name]
                         e.season = match_data.size == 2 ? '1' : match_data[1]
                         e.episode = match_data[ match_data.size - 1 ]
                         e.path = path
@@ -267,54 +285,34 @@ module TVTime
     class Search
         def initialize( settings = Settings.new )
             @settings = settings
+            @tvdb = TvdbParty::Search.new( @settings[:tvdb_api_key] )
         end
 
         def find_series( title )
-            tvdb = TvdbParty::Search.new( nil ) #you don't need a Tvdb API key for basic search
-
-            results = tvdb.search( title )
+            results = @tvdb.search( title )
             results.select!{|r| r['FirstAired'] } #must have this field
 
             #assume the more-recent show first
             results.sort!{ | a,b |  b['FirstAired'] <=> a['FirstAired'] }
-            results.collect!{ | r | { :title => r['SeriesName'], :imdb_id => r['IMDB_ID'] } }
-            results.reject!{ | r | r[:imdb_id] == nil }
+            results = results.collect{|r| find_series_by_id( r['seriesid'] ) }
             return results
         end
 
-        def each_episode_from_imdb
-            @settings[:series].each do | series |
-                create_episodes_from_imdb( series ) do | episode |
-                    yield( episode )
-                end
+        def find_series_by_id( seriesid )
+            return @tvdb.get_series_by_id( seriesid )
+        end
+
+        def find_episodes_by_seriesid( seriesid )
+            series = find_series_by_id( seriesid )
+            series.episodes.each do | episode |
+                yield( episode )
             end
         end
 
-        def create_episodes_from_imdb( series )
-            imdb = Imdb::Serie.new( series[:imdb_id].gsub('tt','') )
-            raise "bad imdb_id: #{series}" unless imdb
-            1.upto( imdb.seasons.size ) do | season |
-                imdb_season = imdb.season( season )
-                1.upto( imdb.season( season ).episodes.size ) do | episode |
-                    e = Episode.new
-                    e.series = series[:title]
-                    e.season = season
-                    e.episode = episode
-
-                    imdb_episode = imdb_season.episode( episode )
-                    if( imdb_episode ) # this comes back nil sometimes
-                        e.title = imdb_episode.title
-                        begin
-                            # sometimes the dates that come back are bad
-                            e.air_date = Date::parse( imdb_episode.air_date )
-                        rescue
-                        end
-
-                        yield( e ) if e.air_date
-
-                    else
-                        STDERR.puts "invalid episode: #{series} #{season} #{episode}" if @settings[:verbose]
-                    end
+        def each_episode
+            @settings[:series].each do | series_hash |
+                find_episodes_by_seriesid( series_hash[:id] ) do | episode |
+                    yield( episode )
                 end
             end
         end
@@ -322,9 +320,13 @@ module TVTime
         def each_missing_episode( library )
             today = Date::today
 
-            each_episode_from_imdb  do | episode |
-                unless( library.exists?( episode ) )
-                    if( episode.air_date <= today )
+            each_episode  do | episode |
+                if( episode.air_date and ( episode.air_date <= today ) )
+                    e = ::TVTime::Episode.new
+                    e.series = episode.series.name
+                    e.season = episode.season_number.to_i
+                    e.episode = episode.number.to_i
+                    unless( library.exists?( e ) )
                         yield( episode )
                     end
                 end
@@ -336,18 +338,18 @@ module TVTime
             eztv = {}
 
             each_missing_episode( library ) do | episode |
-                unless eztv.has_key?( episode.series )
-                    ez = EZTV::Series.new( ::TVTime::format_title( episode.series ) )
+                unless eztv.has_key?( episode.series.name )
+                    ez = EZTV::Series.new( ::TVTime::format_title( episode.series.name ) )
                     ez.high_def! if @settings[:high_def]
-                    eztv[ episode.series ] = ez
+                    eztv[ episode.series.name ] = ez
                 end
 
-                eztv_episode = eztv[ episode.series ].episode( episode.season, episode.episode )
+                eztv_episode = eztv[ episode.series.name ].episode( episode.season_number.to_i, episode.number.to_i )
 
                 if eztv_episode
                     yield( eztv_episode.magnet_link )
                 else
-                    STDERR.puts "could not find #{episode} on eztv" if @settings[:verbose]
+                    STDERR.puts "could not find #{episode.series.name} S#{episode.season_number}E#{episode.number} on eztv" if @settings[:verbose]
                 end
             end
         end

@@ -53,7 +53,7 @@ begin
                     cli.choose do | results_menu |
                         results_menu.prompt = "Which series would you like to add?"
                         results.each do | series |
-                            results_menu.choice( series[:title] + ' : ' + series[:imdb_id] ) do
+                            results_menu.choice( series.name + ' : ' + series.network ) do
                                 settings.add_series!( series )
                                 settings.save!
                             end
@@ -68,9 +68,9 @@ begin
                     cli.choose do | delete_menu |
                         delete_menu.prompt = "Which series would you like to delete?"
                         settings[:series].each do | series |
-                            delete_menu.choice( series[:title] + ' : ' + series[:imdb_id] ) do
+                            delete_menu.choice( series[:name] + ' : ' + series[:network] ) do
                                 confirm = cli.ask("Are you sure? [Y/N]") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-                                settings.remove_series!( series ) if confirm.downcase == 'y'
+                                settings.remove_series!( series[:id] ) if confirm.downcase == 'y'
                                 settings.save!
                             end
                         end
@@ -82,7 +82,7 @@ begin
 
                 series_menu.choice("List TV Series") do
                     settings[:series].each do | series |
-                        cli.say( series[:title] + ' : ' + series[:imdb_id] )
+                        cli.say( series[:name] + ' : ' + series[:network] )
                     end
                 end
 
@@ -92,9 +92,9 @@ begin
 
         main_menu.choice("Manage Directories") do
             cli.choose do | dir_menu |
-                {:library_path => "Library", :download_path => "Download" }.each do | k, v |
+                {:library_path => 'Library', :download_path => 'Download' }.each do | k, v |
                     dir_menu.choice( "Update #{v} Path" ) do
-                        path = cli.ask("Enter New Path")
+                        path = cli.ask('Enter New Path')
                         TVTime::Settings::set!( k, path )
                     end
                     dir_menu.choice( "Open #{v} Path" ) do
@@ -102,6 +102,8 @@ begin
                         puts cmd
                         system( cmd )
                     end
+                end
+                dir_menu.choice( "cancel" ) do
                 end
             end
         end
@@ -111,6 +113,10 @@ begin
             TVTime::enable_test_mode!( !TVTime::test_mode_enabled? )
         end
 
+        main_menu.choice("Set TVDB API Key ( #{settings[:tvdb_api_key] or 'Not Set'} )") do
+            tvdb_api_key = cli.ask('Enter TVDB API Key ( http://www.thetvdb.com/?tab=register )')
+            TVTime::Settings::set!(:tvdb_api_key, tvdb_api_key )
+        end
 
         main_menu.choice("Reload Settings") do
             puts "reloaded" # will be reloaded on next loop
