@@ -3,6 +3,7 @@ require 'json'
 
 require 'eztv'
 require 'tvdb_party'
+require 'transmission_api'
 
 
 # module TvdbParty
@@ -119,8 +120,8 @@ module TVTime
         end
     end
 
-    class Episode
-        attr_accessor :series, :season, :episode, :title, :air_date, :path
+    class EpisodeFile
+        attr_accessor :series, :season, :episode, :title, :air_date, :path, :status, :percent_done
         attr_writer :type
 
         def type
@@ -138,19 +139,31 @@ module TVTime
         end
 
         def to_h
-            return { :series => series, :season => season, :episode => episode, :title => title, :air_date => air_date.to_s, :path => path }
+            return { :series => series,
+                     :season => season,
+                     :episode => episode,
+                     :title => title,
+                     :air_date => air_date.to_s,
+                     :path => path,
+                     :status => status,
+                     :percent_done => percent_done
+            }
+        end
+
+        def <=>( other )
+            if( self.series == other.series )
+                if( self.season == other.season )
+                    return self.episode <=> other.episode
+                else
+                    return self.season <=> other.season
+                end
+            else
+                return self.series <=> other.series
+            end
         end
 
         def to_s
             return to_h.to_s
-        end
-    end
-
-    class Series
-        def initialize( path )
-            @path = path
-            @name = File::basename( path )
-            @seasons = {}
         end
     end
 
@@ -161,7 +174,7 @@ module TVTime
         end
 
         def exists?( episode )
-            Dir::glob( episode_path( episode ) ).each do | path |
+            Dir::glob( episode_glob( episode ) ).each do | path |
                 return true if File::exists?( path )
             end
             return false
@@ -176,13 +189,24 @@ module TVTime
         end
 
 
-        def episode_path( episode )
+        def episode_glob( episode )
             formatted_title = ::TVTime::format_title( episode.series )
             return [ @settings[:library_path],
                      formatted_title,
                      "Season #{format_season( episode )}",
                      "#{formatted_title} S#{format_season( episode )}E#{format_episode( episode )}" + ( episode.type or '.*' )
                    ].join( File::SEPARATOR )
+        end
+
+        def episode_path( episode )
+            glob = episode_glob( episode )
+            if( episode.type )
+                return glob # this will NOT end in .*
+            else
+                Dir::glob( glob ).each do | path |
+                    return path
+                end
+            end
         end
 
         def catalog!( episode )
@@ -206,32 +230,37 @@ module TVTime
     class Downloads
 
         REGEX = [ /[sS](\d{1,2})[eE](\d{1,2})/, #s1e2, s01e02, S1E02, S01E2
-                  /(\d{1,2})x(\d{1,2})/, #1x2, 01x2, 1x02, 01x02
-                  /E(\d{2})/ #E02
+                  /(\d{1,2})x(\d{1,2})/ #1x2, 01x2, 1x02, 01x02
                 ]
 
         def initialize( settings = Settings.new )
             @settings = settings
+            @transmission = nil
+            @paths = nil
+            @torrents = nil
         end
 
-
-        def create_episode!( path )
-            e = nil
+        def path_match( path )
             @settings[:series].each do | series |
                 next unless( ::TVTime::path_contains_series?( path, series[:name] ) )
-
                 REGEX.each do | regex |
                     match_data = path.match( regex )
                     if( match_data )
-                        e = Episode.new
-                        e.series = series[:name]
-                        e.season = match_data.size == 2 ? '1' : match_data[1]
-                        e.episode = match_data[ match_data.size - 1 ]
-                        e.path = path
-                        break
+                        yield( series, match_data )
+                        return
                     end
                 end
-                break if e
+            end
+        end
+
+        def create_episode!( path )
+            e = nil
+            path_match( path ) do | series, match_data |
+                e = EpisodeFile.new
+                e.series = series[:name]
+                e.season = match_data[1].to_i
+                e.episode = match_data[ 2 ].to_i
+                e.path = path
             end
             return e
         end
@@ -240,26 +269,45 @@ module TVTime
             return ( @settings[:allowed_types].include?( File::extname( path ) ) or @settings[:subtitles].include?( File::extname( path ) ) )
         end
 
-        def each_file
+        def paths
+            return @paths if @paths
             glob = [ @settings[:download_path], '**/*' ].join( File::SEPARATOR )
-            Dir::glob( glob ).each do | path |
-                yield( path )
-            end
+            @paths = Dir::glob( glob )
+            @paths = @paths.select{|p| allowed_type?( p ) }
+            return @paths
         end
 
-        def each_allowed_file
-            each_file do | path |
-                next unless allowed_type?( path )
-                yield( path )
-            end
+        def torrents
+            return @torrents if @torrents
+            @transmission = TransmissionApi::Client.new(@settings[:transmission]) unless @transmission
+            @torrents = @transmission.all
+            return @torrents
         end
 
-        def each_episode
-            each_allowed_file do | path |
-                episode = create_episode!( path )
-                yield( episode ) if episode
+        def get_path_if_exists( episode_file )
+            episode_files = paths().collect{|p| create_episode!( p ) }
+            episode_files.select!{|ef| ef }
+            episode_files.each do | dn_ep | #download_episode_file
+                if( 0 == ( episode_file <=> dn_ep ) )
+                    return dn_ep.path
+                end
             end
+            return nil
         end
+
+        def get_torrent_if_exists( episode_file )
+            torrents().each do | torrent |
+                name = torrent['name']
+                torrent_episode = create_episode!( name )
+                if( torrent_episode )
+                    if( 0 == ( episode_file <=> torrent_episode ) )
+                        return torrent
+                    end
+                end
+            end
+            return nil
+        end
+
     end
 
     def self.format_title( title )
@@ -286,6 +334,7 @@ module TVTime
         def initialize( settings = Settings.new )
             @settings = settings
             @tvdb = TvdbParty::Search.new( @settings[:tvdb_api_key] )
+            @eztv = {}
         end
 
         def find_series( title )
@@ -305,7 +354,7 @@ module TVTime
         def find_episodes_by_seriesid( seriesid )
             series = find_series_by_id( seriesid )
             series.episodes.each do | episode |
-                yield( episode )
+                yield( episode ) if episode.season_number.to_i > 0
             end
         end
 
@@ -317,41 +366,60 @@ module TVTime
             end
         end
 
-        def each_missing_episode( library )
-            today = Date::today
 
-            each_episode  do | episode |
-                if( episode.air_date and ( episode.air_date <= today ) )
-                    e = ::TVTime::Episode.new
-                    e.series = episode.series.name
-                    e.season = episode.season_number.to_i
-                    e.episode = episode.number.to_i
-                    unless( library.exists?( e ) )
-                        yield( episode )
-                    end
+        def each_series_episode_file_status( seriesid, downloads, library )
+            today = Date::today
+            find_episodes_by_seriesid( seriesid ) do | episode |
+                ep_file = ::TVTime::EpisodeFile.new
+                ep_file.series = episode.series.name
+                ep_file.season = episode.season_number.to_i
+                ep_file.episode = episode.number.to_i
+                ep_file.title = episode.name
+                ep_file.air_date = episode.air_date
+
+                if( ( ep_file.air_date == nil ) or ( ep_file.air_date > today ) )
+                    ep_file.percent_done = 0
+                    ep_file.status = :upcoming
+                    ep_file.path = ''
+                elsif( library.exists?( ep_file ) )
+                    ep_file.percent_done = 1
+                    ep_file.status = :cataloged
+                    ep_file.path = library.episode_path( ep_file )
+                elsif( download_path = downloads.get_path_if_exists( ep_file ) )
+                    ep_file.percent_done = 1
+                    ep_file.status = :downloaded
+                    ep_file.path = download_path
+                elsif( torrent = downloads.get_torrent_if_exists( ep_file ) )
+                    ep_file.percent_done = torrent['percentDone']
+                    ep_file.status = :downloading
+                    ep_file.path = ''
+                elsif( magnet_link = get_magnet_link_if_exists( ep_file ) )
+                    ep_file.percent_done = 0
+                    ep_file.status = :available
+                    ep_file.path = magnet_link
+                else
+                    ep_file.percent_done = 0
+                    ep_file.status = :missing
+                    ep_file.path = ''
                 end
+                yield( ep_file )
             end
         end
 
-        def each_missing_magnet_link( library )
-
-            eztv = {}
-
-            each_missing_episode( library ) do | episode |
-                unless eztv.has_key?( episode.series.name )
-                    ez = EZTV::Series.new( ::TVTime::format_title( episode.series.name ) )
-                    ez.high_def! if @settings[:high_def]
-                    eztv[ episode.series.name ] = ez
-                end
-
-                eztv_episode = eztv[ episode.series.name ].episode( episode.season_number.to_i, episode.number.to_i )
-
-                if eztv_episode
-                    yield( eztv_episode.magnet_link )
-                else
-                    STDERR.puts "could not find #{episode.series.name} S#{episode.season_number}E#{episode.number} on eztv" if @settings[:verbose]
-                end
+        def eztv( series_name )
+            unless( @eztv.has_key?( series_name ) )
+                ez = EZTV::Series.new( ::TVTime::format_title( series_name ) )
+                ez.high_def! if @settings[:high_def]
+                @eztv[ series_name ] = ez
             end
+            return @eztv[ series_name ]
+        end
+
+        def get_magnet_link_if_exists( episode_file )
+            ez = eztv( episode_file.series )
+            eztv_episode = ez.episode( episode_file.season, episode_file.episode )
+            return eztv_episode.magnet_link if eztv_episode
+            return nil
         end
     end
 
@@ -385,28 +453,73 @@ module TVTime
         return nil
     end
 
+    def self.catalog_downloads_series!( seriesid, settings = Settings.new )
+        search = Search.new( settings )
+        library = Library.new( settings )
+        downloads = Downloads.new( settings )
+
+        search.each_series_episode_file_status( seriesid, downloads, library ) do | episode_file |
+            if( episode_file.status == :downloaded )
+                library.catalog!( episode_file )
+            end
+        end
+    end
+
+
     def self.catalog_downloads!( settings = Settings.new )
         downloads = Downloads.new( settings )
         library = Library.new( settings )
-
-        downloads.each_episode do | episode |
-            library.catalog!( episode )
+        episode_files = downloads.paths.collect{|p| downloads.create_episode!( p ) }
+        episode_files.select!{|ef| ef }
+        episode_files.each do | episode_file |
+            library.catalog!( episode_file )
         end
         return nil
+    end
+
+    def self.download_missing_series!( seriesid, settings = Settings.new )
+        search = Search.new( settings )
+        library = Library.new( settings )
+        downloads = Downloads.new( settings )
+
+        search.each_series_episode_file_status( seriesid, downloads, library ) do | episode_file |
+            if( episode_file.status == :available )
+                magnet_link = episode_file.path
+                cmd = "open #{magnet_link}"
+                puts cmd if settings[:verbose]
+                unless settings[:dry_run]
+                    system( cmd )
+                    sleep( 5 )
+                end
+            end
+        end
     end
 
     def self.download_missing!( settings = Settings.new )
         search = Search.new( settings )
         library = Library.new( settings )
-
-        search.each_missing_magnet_link( library ) do | magnet_link |
-            cmd = "open #{magnet_link}"
-            puts cmd if settings[:verbose]
-            unless settings[:dry_run]
-                system( cmd )
-                sleep( 5 )
+        downloads = Downloads.new( settings )
+        settings[:series].each do | series |
+            search.each_series_episode_file_status( series[:id], downloads, library ) do | episode_file |
+                if( episode_file.status == :available )
+                    magnet_link = episode_file.path
+                    cmd = "open #{magnet_link}"
+                    puts cmd if settings[:verbose]
+                    unless settings[:dry_run]
+                        system( cmd )
+                        sleep( 5 )
+                    end
+                end
             end
         end
+        # search.each_missing_magnet_link( library ) do | magnet_link |
+        #     cmd = "open #{magnet_link}"
+        #     puts cmd if settings[:verbose]
+        #     unless settings[:dry_run]
+        #         system( cmd )
+        #         sleep( 5 )
+        #     end
+        # end
     end
 
 

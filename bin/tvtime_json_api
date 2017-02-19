@@ -34,8 +34,17 @@ when 'search_and_list'
         episodes << episode.to_h
     end
     puts episodes.to_json
+when 'episode_status'
+    search = TVTime::Search.new( settings )
+    library = TVTime::Library.new( settings )
+    downloads = TVTime::Downloads.new( settings )
+    files = []
+    search.each_series_episode_file_status( ARGV[1], downloads, library ) do | episode_file |
+        files << episode_file.to_h
+    end
+    puts files.to_json
 when 'download_missing'
-    TVTime::download_missing!( settings )
+    TVTime::download_missing_series!( ARGV[1], settings )
 when 'catalog_downloads'
-    TVTime::catalog_downloads!( settings )
+    TVTime::catalog_downloads_series!( ARGV[1], settings )
 end
