@@ -2,6 +2,7 @@
 
 require 'highline'
 require 'tvtime'
+Encoding.default_external = 'UTF-8'
 
 # Basic usage
 

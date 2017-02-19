@@ -1,6 +1,7 @@
 #!/usr/bin/ruby
 
 require 'tvtime'
+Encoding.default_external = 'UTF-8'
 
 TVTime::Settings::create_default! unless TVTime::Settings::exists?
 
