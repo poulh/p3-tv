@@ -277,11 +277,26 @@ module TVTime
             return @paths
         end
 
+        def transmission
+            unless @transmission
+                @transmission = TransmissionApi::Client.new(@settings[:transmission]) unless @transmission
+            end
+
+            return @transmission
+        end
+
         def torrents
-            return @torrents if @torrents
-            @transmission = TransmissionApi::Client.new(@settings[:transmission]) unless @transmission
-            @torrents = @transmission.all
+            unless @torrents
+                @torrents = transmission().all
+            end
+
             return @torrents
+        end
+
+        def remove_completed_torrents!
+            transmission().all.each do | torrent |
+                transmission().remove( torrent['id'] ) if torrent['percentDone'] == 1
+            end
         end
 
         def get_path_if_exists( episode_file )
@@ -457,6 +472,7 @@ module TVTime
         search = Search.new( settings )
         library = Library.new( settings )
         downloads = Downloads.new( settings )
+        downloads.remove_completed_torrents!
 
         search.each_series_episode_file_status( seriesid, downloads, library ) do | episode_file |
             if( episode_file.status == :downloaded )
@@ -468,6 +484,8 @@ module TVTime
 
     def self.catalog_downloads!( settings = Settings.new )
         downloads = Downloads.new( settings )
+        downloads.remove_completed_torrents!
+
         library = Library.new( settings )
         episode_files = downloads.paths.collect{|p| downloads.create_episode!( p ) }
         episode_files.select!{|ef| ef }
