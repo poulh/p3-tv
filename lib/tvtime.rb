@@ -361,12 +361,8 @@ module TVTime
     end
 
     def self.format_title( title )
-
-        rval = title
-        ["'",'(',')'].each do | remove |
-            rval.gsub!( remove, '')
-        end
-
+        #strip non alphanumeric characters and extra whitespace
+        rval = title.gsub(/[^0-9a-z ]/i, '').gsub(/[ ]+/,' ').strip
         return rval
     end
 
