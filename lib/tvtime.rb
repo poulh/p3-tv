@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'json'
+require 'open-uri'
 
 require 'eztv'
 require 'tvdb_party'
@@ -38,6 +39,7 @@ module TVTime
             :delete_duplicate_downloads => false,
             :overwrite_duplicates => false,
             :allowed_types => ['.avi', '.mkv', '.mp4'],
+            :language => 'en',
             :subtitles => ['.srt'],
             :high_def => true,
             :verbose => false,
@@ -96,6 +98,10 @@ module TVTime
 
         end
 
+        def to_h
+            return @values
+        end
+
         def []( key )
             return @values[ key ]
         end
@@ -104,15 +110,44 @@ module TVTime
             @values[ key ] = value
         end
 
+        def download_banners!( banners, path )
+            FileUtils::mkdir_p( File::dirname( path ) )
+            return if banners.empty?
+            banner = banners.detect{|b| b.url.length }
+            return unless banner
+
+            begin
+                # http://stackoverflow.com/questions/2515931/how-can-i-download-a-file-from-a-url-and-save-it-in-rails
+                download = open( banner.url )
+                IO.copy_stream( download, path )
+            rescue => e
+                return ""
+            end
+
+            return path
+        end
+        
+        def download_meta_data!( series )
+
+        end
+        
         def add_series!( series )
-            self[:series] << series.to_h
-            self[:series].uniq!
+            hash = series.to_h
+            hash[:banners] = {}
+            meta_path = [ File::dirname( @path ), 'series', hash[:id] ].join( File::SEPARATOR )
+            hash[:banners][:poster] = download_banners!( series.posters( self[:language] ),  [ meta_path, 'poster.jpg' ].join( File::SEPARATOR ) )
+            hash[:banners][:banner] = download_banners!( series.series_banners( self[:language] ),  [ meta_path, 'banner.jpg' ].join( File::SEPARATOR ) )
+            download_meta_data!( series )
+
+            remove_series!( hash[:id] )
+            self[:series] << hash
         end
 
         def remove_series!( seriesid )
             self[:series].reject!{|s| s[:id] == seriesid }
         end
 
+        
         def save!
             f = File::open( @path, 'w' )
             f.puts( JSON::pretty_generate( @values ) )

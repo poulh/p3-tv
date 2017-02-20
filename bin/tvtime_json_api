@@ -11,14 +11,14 @@ case ARGV[0]
 when 'set_tvdb_api_key'
     settings.set[:tvdb_api_key] = ARGV[1]
     settings.save!
-when 'series'
-    puts settings[:series].to_json
+when 'settings'
+    puts settings.to_h.to_json
 when 'search'
     search = TVTime::Search.new( settings )
     results = search.find_series( ARGV[1] )
     results = results.collect{|r| r.to_h }
     puts results.to_json
-when 'search_and_add'
+when 'add_series'
     search = TVTime::Search.new( settings )
     series = search.find_series_by_id( ARGV[1] )
     settings.add_series!( series )
@@ -28,13 +28,6 @@ when 'remove_series'
     series = search.find_series_by_id( ARGV[1] )
     settings.remove_series!( series.id )
     settings.save!
-when 'search_and_list'
-    episodes = []
-    search = TVTime::Search.new( settings )
-    search.find_episodes_by_seriesid( ARGV[1] ) do | episode |
-        episodes << episode.to_h
-    end
-    puts episodes.to_json
 when 'episode_status'
     search = TVTime::Search.new( settings )
     library = TVTime::Library.new( settings )
