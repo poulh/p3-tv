@@ -126,11 +126,7 @@ module TVTime
 
             return path
         end
-        
-        def download_meta_data!( series )
 
-        end
-        
         def add_series!( series )
             hash = series.to_h
             hash[:banners] = {}
@@ -149,7 +145,6 @@ module TVTime
             self[:series].reject!{|s| s[:id] == seriesid }
         end
 
-        
         def save!
             f = File::open( @path, 'w' )
             f.puts( JSON::pretty_generate( @values ) )
@@ -277,20 +272,39 @@ module TVTime
             @torrents = nil
         end
 
-        def path_match( path )
-            @settings[:series].each do | series |
-                next unless( ::TVTime::path_contains_series?( path, series[:name] ) )
-                REGEX.each do | regex |
-                    match_data = path.match( regex )
-                    if( match_data )
-                        yield( series, match_data )
-                        return
-                    end
+        def path_match_series( path, series_name )
+            return unless( ::TVTime::path_contains_series?( path, series_name ) )
+            REGEX.each do | regex |
+                match_data = path.match( regex )
+                if( match_data )
+                    yield( match_data )
+                    return
                 end
             end
         end
 
-        def create_episode!( path )
+        def path_match( path )
+            @settings[:series].each do | series |
+                path_match_series( path, series[:name] ) do | match_data |
+                    yield( series, match_data )
+                    return
+                end
+            end
+        end
+
+        def create_episode_from_filename_series( path, series_name )
+            e = nil
+            path_match_series( path, series_name ) do | match_data |
+                e = EpisodeFile.new
+                e.series = series_name
+                e.season = match_data[1].to_i
+                e.episode = match_data[ 2 ].to_i
+                e.path = path
+            end
+            return e
+        end
+
+        def create_episode_from_filename( path )
             e = nil
             path_match( path ) do | series, match_data |
                 e = EpisodeFile.new
@@ -337,7 +351,7 @@ module TVTime
         end
 
         def get_path_if_exists( episode_file )
-            episode_files = paths().collect{|p| create_episode!( p ) }
+            episode_files = paths().collect{|p| create_episode_from_filename_series( p, episode_file.series ) }
             episode_files.select!{|ef| ef }
             episode_files.each do | dn_ep | #download_episode_file
                 if( 0 == ( episode_file <=> dn_ep ) )
@@ -350,7 +364,7 @@ module TVTime
         def get_torrent_if_exists( episode_file )
             torrents().each do | torrent |
                 name = torrent['name']
-                torrent_episode = create_episode!( name )
+                torrent_episode = create_episode_from_filename_series( name, episode_file.series )
                 if( torrent_episode )
                     if( 0 == ( episode_file <=> torrent_episode ) )
                         return torrent
@@ -496,7 +510,7 @@ module TVTime
         downloads = Downloads.new( settings )
         return if downloads.allowed_type?( path )
         library = Library.new( settings )
-        episode = downloads.create_episode!( path )
+        episode = downloads.create_episode_from_filename( path )
         library.catalog!( episode ) if episode
         return nil
     end
@@ -520,7 +534,7 @@ module TVTime
         downloads.remove_completed_torrents!
 
         library = Library.new( settings )
-        episode_files = downloads.paths.collect{|p| downloads.create_episode!( p ) }
+        episode_files = downloads.paths.collect{|p| downloads.create_episode_from_filename( p ) }
         episode_files.select!{|ef| ef }
         episode_files.each do | episode_file |
             library.catalog!( episode_file )
