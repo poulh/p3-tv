@@ -141,6 +141,8 @@ module TVTime
 
             remove_series!( hash[:id] )
             self[:series] << hash
+            leading_the = /^The /
+            self[:series].sort!{|a,b| a[:name].gsub(leading_the,'') <=> b[:name].gsub(leading_the,'') }
         end
 
         def remove_series!( seriesid )
