@@ -110,6 +110,14 @@ module TVTime
             @values[ key ] = value
         end
 
+        def allowed_type?( path )
+            return ( self[:allowed_types].include?( File::extname( path ) ) or self[:subtitles].include?( File::extname( path ) ) )
+        end
+
+        def get_series( seriesid )
+            return self[:series].detect{|s| s[:id] == seriesid }
+        end
+
         def download_banners!( banners, path )
             FileUtils::mkdir_p( File::dirname( path ) )
             return if banners.empty?
@@ -152,7 +160,7 @@ module TVTime
     end
 
     class EpisodeFile
-        attr_accessor :series, :season, :episode, :title, :air_date, :path, :status, :percent_done
+        attr_accessor :series_id, :series, :season, :episode, :title, :air_date, :path, :status, :percent_done
         attr_writer :type
 
         def type
@@ -170,7 +178,8 @@ module TVTime
         end
 
         def to_h
-            return { :series => series,
+            return { :series_id => series_id,
+                     :series => series,
                      :season => season,
                      :episode => episode,
                      :title => title,
@@ -291,10 +300,11 @@ module TVTime
             end
         end
 
-        def create_episode_from_filename_series( path, series_name )
+        def create_episode_from_filename_series( path, seriesid, series_name )
             e = nil
             path_match_series( path, series_name ) do | match_data |
                 e = EpisodeFile.new
+                e.series_id = seriesid
                 e.series = series_name
                 e.season = match_data[1].to_i
                 e.episode = match_data[ 2 ].to_i
@@ -307,6 +317,7 @@ module TVTime
             e = nil
             path_match( path ) do | series, match_data |
                 e = EpisodeFile.new
+                e.series_id = series[:id]
                 e.series = series[:name]
                 e.season = match_data[1].to_i
                 e.episode = match_data[ 2 ].to_i
@@ -315,15 +326,44 @@ module TVTime
             return e
         end
 
-        def allowed_type?( path )
-            return ( @settings[:allowed_types].include?( File::extname( path ) ) or @settings[:subtitles].include?( File::extname( path ) ) )
+        def each_episode_file_in_series( seriesid )
+            series = @settings.get_series( seriesid )
+            if( series )
+                episode_files = paths().collect{|path| create_episode_from_filename_series( path, series[:id], series[:name] ) }
+                episode_files.each do | episode_file |
+                    yield( episode_file ) if episode_file
+                end
+            end
+        end
+
+        def each_episode_file
+            episode_files = paths().collect{|path| create_episode_from_filename( path ) }
+            episode_files.each do | episode_file |
+                if episode_file
+                    episode_file.status = :downloaded
+                    episode_file.percent_done = 1
+                    yield( episode_file )
+                end
+            end
+
+        end
+
+        def each_downloading_file
+            torrents().each do |torrent|
+                episode_file = create_episode_from_filename( torrent['name'] )
+                if( episode_file )
+                    episode_file.status = :downloading
+                    episode_file.percent_done = torrent['percentDone']
+                    yield( episode_file )
+                end
+            end
         end
 
         def paths
             return @paths if @paths
             glob = [ @settings[:download_path], '**/*' ].join( File::SEPARATOR )
             @paths = Dir::glob( glob )
-            @paths = @paths.select{|p| allowed_type?( p ) }
+            @paths = @paths.select{|p| @settings.allowed_type?( p ) }
             return @paths
         end
 
@@ -347,13 +387,16 @@ module TVTime
         end
 
         def remove_completed_torrents!
-            transmission().all.each do | torrent |
+            torrents().each do | torrent |
                 transmission().remove( torrent['id'] ) if torrent['percentDone'] == 1
             end
+
+            torrents().reject!{ | torrent | torrent['percentDone'] == 1 }
+            return nil
         end
 
         def get_path_if_exists( episode_file )
-            episode_files = paths().collect{|p| create_episode_from_filename_series( p, episode_file.series ) }
+            episode_files = paths().collect{|p| create_episode_from_filename_series( p, episode_file.series_id, episode_file.series ) }
             episode_files.select!{|ef| ef }
             episode_files.each do | dn_ep | #download_episode_file
                 if( 0 == ( episode_file <=> dn_ep ) )
@@ -366,7 +409,7 @@ module TVTime
         def get_torrent_if_exists( episode_file )
             torrents().each do | torrent |
                 name = torrent['name']
-                torrent_episode = create_episode_from_filename_series( name, episode_file.series )
+                torrent_episode = create_episode_from_filename_series( name, episode_file.series_id, episode_file.series )
                 if( torrent_episode )
                     if( 0 == ( episode_file <=> torrent_episode ) )
                         return torrent
@@ -436,6 +479,7 @@ module TVTime
             today = Date::today
             find_episodes_by_seriesid( seriesid ) do | episode |
                 ep_file = ::TVTime::EpisodeFile.new
+                ep_file.series_id = seriesid
                 ep_file.series = episode.series.name
                 ep_file.season = episode.season_number.to_i
                 ep_file.episode = episode.number.to_i
@@ -511,7 +555,7 @@ module TVTime
 
     def self.catalog_file!( path, settings = Settings.new )
         downloads = Downloads.new( settings )
-        return if downloads.allowed_type?( path )
+        return if settings.allowed_type?( path )
         library = Library.new( settings )
         episode = downloads.create_episode_from_filename( path )
         library.catalog!( episode ) if episode
@@ -522,16 +566,11 @@ module TVTime
         downloads = Downloads.new( settings )
         downloads.remove_completed_torrents!
 
-        series = settings[:series].detect{|s| s[:id] == seriesid }
-        if( series )
-            library = Library.new( settings )
-
-            episode_files = downloads.paths.collect{|p| downloads.create_episode_from_filename_series( p, series[:name] ) }
-            episode_files.select!{|ef| ef }
-            episode_files.each do | episode_file |
-                library.catalog!( episode_file )
-            end
+        library = Library.new( settings )
+        downloads.each_episode_file_in_series( seriesid ) do | episode_file |
+            library.catalog!( episode_file )
         end
+        return nil
     end
 
 
@@ -540,9 +579,7 @@ module TVTime
         downloads.remove_completed_torrents!
 
         library = Library.new( settings )
-        episode_files = downloads.paths.collect{|p| downloads.create_episode_from_filename( p ) }
-        episode_files.select!{|ef| ef }
-        episode_files.each do | episode_file |
+        downloads.each_episode_file do | episode_file |
             library.catalog!( episode_file )
         end
         return nil
