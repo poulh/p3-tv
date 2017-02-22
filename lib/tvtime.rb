@@ -516,13 +516,16 @@ module TVTime
     end
 
     def self.catalog_downloads_series!( seriesid, settings = Settings.new )
-        search = Search.new( settings )
-        library = Library.new( settings )
         downloads = Downloads.new( settings )
         downloads.remove_completed_torrents!
 
-        search.each_series_episode_file_status( seriesid, downloads, library ) do | episode_file |
-            if( episode_file.status == :downloaded )
+        series = settings[:series].detect{|s| s[:id] == seriesid }
+        if( series )
+            library = Library.new( settings )
+
+            episode_files = downloads.paths.collect{|p| downloads.create_episode_from_filename_series( p, series[:name] ) }
+            episode_files.select!{|ef| ef }
+            episode_files.each do | episode_file |
                 library.catalog!( episode_file )
             end
         end
