@@ -133,7 +133,6 @@ module TVTime
             meta_path = [ File::dirname( @path ), 'series', hash[:id] ].join( File::SEPARATOR )
             hash[:banners][:poster] = download_banners!( series.posters( self[:language] ),  [ meta_path, 'poster.jpg' ].join( File::SEPARATOR ) )
             hash[:banners][:banner] = download_banners!( series.series_banners( self[:language] ),  [ meta_path, 'banner.jpg' ].join( File::SEPARATOR ) )
-            download_meta_data!( series )
 
             remove_series!( hash[:id] )
             self[:series] << hash
@@ -330,13 +329,16 @@ module TVTime
 
         def transmission
             unless @transmission
-                @transmission = TransmissionApi::Client.new(@settings[:transmission]) unless @transmission
+                unless( @settings[:transmission] == nil )
+                    @transmission = TransmissionApi::Client.new(@settings[:transmission])
+                end
             end
 
             return @transmission
         end
 
         def torrents
+            @torrents = [] unless transmission()
             unless @torrents
                 @torrents = transmission().all
             end
@@ -395,6 +397,7 @@ module TVTime
     class Search
         def initialize( settings = Settings.new )
             @settings = settings
+            raise "tvdb api key required" unless @settings[:tvdb_api_key]
             @tvdb = TvdbParty::Search.new( @settings[:tvdb_api_key] )
             @eztv = {}
         end
