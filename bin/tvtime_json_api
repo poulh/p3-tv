@@ -39,17 +39,18 @@ when 'episode_status'
     puts files.to_json
 when 'download_missing'
     TVTime::download_missing_series!( ARGV[1], settings )
-when 'downloads'
+when 'catalog_and_downloads'
     downloads = TVTime::Downloads.new( settings )
-    downloads.remove_completed_torrents!
+
+    if( downloads.remove_completed_torrents! > 0 )
+        TVTime::catalog_downloads!( settings, downloads )       
+    end
 
     files = []
-    downloads.each_episode_file do | episode_file |
-        files << episode_file.to_h
-    end
     downloads.each_downloading_file do | episode_file |
         files << episode_file.to_h
     end
+    files.sort!{|a,b| b[:percent_done] <=> a[:percent_done] } #highest percent first
     puts files.to_json
 when 'catalog_downloads_for_series'
     TVTime::catalog_downloads_series!( ARGV[1], settings )

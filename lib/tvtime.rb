@@ -387,12 +387,14 @@ module TVTime
         end
 
         def remove_completed_torrents!
+            count = 0
             torrents().each do | torrent |
+                count += 1
                 transmission().remove( torrent['id'] ) if torrent['percentDone'] == 1
             end
 
             torrents().reject!{ | torrent | torrent['percentDone'] == 1 }
-            return nil
+            return count
         end
 
         def get_path_if_exists( episode_file )
@@ -574,10 +576,7 @@ module TVTime
     end
 
 
-    def self.catalog_downloads!( settings = Settings.new )
-        downloads = Downloads.new( settings )
-        downloads.remove_completed_torrents!
-
+    def self.catalog_downloads!( settings = Settings.new, downloads = Downloads.new( settings ) )
         library = Library.new( settings )
         downloads.each_episode_file do | episode_file |
             library.catalog!( episode_file )
