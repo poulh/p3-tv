@@ -4,7 +4,7 @@ require 'open-uri'
 
 require 'p3-eztv'
 require 'p3-tvdb'
-require 'transmission_api'
+require 'p3-transmission'
 
 module TVTime
 
@@ -349,7 +349,7 @@ module TVTime
         def transmission
             unless @transmission
                 unless( @settings[:transmission] == nil )
-                    @transmission = TransmissionApi::Client.new(@settings[:transmission])
+                    @transmission = P3::Transmission::Client.new(@settings[:transmission])
                 end
             end
 
