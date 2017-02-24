@@ -463,8 +463,10 @@ module TVTime
 
         def find_episodes_by_seriesid( seriesid )
             series = find_series_by_id( seriesid )
-            series.episodes.each do | episode |
-                yield( episode ) if episode.season_number.to_i > 0
+            if( series )
+                series.episodes.each do | episode |
+                    yield( episode ) if episode.season_number.to_i > 0
+                end
             end
         end
 
