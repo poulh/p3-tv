@@ -3,29 +3,8 @@ require 'json'
 require 'open-uri'
 
 require 'p3-eztv'
-require 'tvdb_party'
+require 'p3-tvdb'
 require 'transmission_api'
-
-
-# module TvdbParty
-#     class Series
-#         def to_h
-#             hash = {}
-#             self.instance_variables.each do | var |
-#                 #turn episode object into hash
-#                 v = self.instance_variable_get( var )
-#                 hash[ var.to_s.gsub('@','').to_sym ] = v
-#             end
-#             hash.delete(:client)
-#             return hash
-#         end
-
-#     end
-
-#     class Episode
-
-#     end
-# end
 
 module TVTime
 
@@ -443,7 +422,7 @@ module TVTime
         def initialize( settings = Settings.new )
             @settings = settings
             raise "tvdb api key required" unless @settings[:tvdb_api_key]
-            @tvdb = TvdbParty::Search.new( @settings[:tvdb_api_key] )
+            @tvdb = P3::Tvdb::Search.new( @settings[:tvdb_api_key] )
             @eztv = {}
         end
 
