@@ -2,7 +2,7 @@ require 'fileutils'
 require 'json'
 require 'open-uri'
 
-require 'eztv'
+require 'p3-eztv'
 require 'tvdb_party'
 require 'transmission_api'
 
@@ -521,7 +521,7 @@ module TVTime
 
         def eztv( series_name )
             unless( @eztv.has_key?( series_name ) )
-                ez = EZTV::Series.new( ::TVTime::format_title( series_name ) )
+                ez = P3::Eztv::Series.new( ::TVTime::format_title( series_name ) )
                 ez.high_def! if @settings[:high_def]
                 @eztv[ series_name ] = ez
             end
