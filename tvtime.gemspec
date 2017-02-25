@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = "tvtime"
-  spec.version       = "0.8.5"
+  spec.version       = "0.9.0"
   spec.authors       = ["Poul Hornsleth"]
   spec.email         = ["poulh@umich.edu"]
   spec.summary       = "TV Show Organizer and Renamer"
@@ -19,7 +19,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_runtime_dependency "p3-eztv", "~> 0.0.7"
-  spec.add_runtime_dependency "p3-tvdb", "~> 0.8.3"
+  spec.add_runtime_dependency "p3-tvdb", "~> 0.9.0"
   spec.add_runtime_dependency "p3-transmission", "~> 0.0.15"
   spec.add_runtime_dependency "highline", "~> 1.7"
 

@@ -12,6 +12,7 @@ module TVTime
         attr_accessor :path
         DEPRECATED_PATH = File::expand_path( "~/.tvtime" )
         DEFAULT_PATH = File::expand_path( "~/.tvtime/tvtime" )
+        EPISODES_JSON = 'episodes.json'
         DEFAULTS = {
             :library_path => '~/Movies',
             :download_path => '~/Downloads',
@@ -57,7 +58,7 @@ module TVTime
         def initialize( path = DEFAULT_PATH )
             @path = path
             @values = {}
-
+            @episodes = {}
             return unless File::exists?( @path )
 
             FileUtils::mkdir_p( File::dirname( @path ) )
@@ -66,7 +67,7 @@ module TVTime
             @values = JSON::parse( f.read, :symbolize_names => true )
             f.close
 
-            self[:library_path] = [ self[:library_path], "TVTime" ].join( File::SEPARATOR ) if self[:create_tvtime_dir ]
+            self[:library_path] = File::join( self[:library_path], "TVTime" ) if self[:create_tvtime_dir ]
             self[:library_path] = File::expand_path( self[:library_path ] )
             self[:download_path] = File::expand_path( self[:download_path ] )
             self[:series].uniq!
@@ -87,6 +88,7 @@ module TVTime
 
         def []=( key, value )
             @values[ key ] = value
+            self.save!
         end
 
         def allowed_type?( path )
@@ -97,38 +99,113 @@ module TVTime
             return self[:series].detect{|s| s[:id] == seriesid }
         end
 
-        def download_banners!( banners, path )
-            FileUtils::mkdir_p( File::dirname( path ) )
-            return if banners.empty?
-            banner = banners.detect{|b| b.url.length }
-            return unless banner
-
+        def download_url!( url, path )
+            # http://stackoverflow.com/questions/2515931/how-can-i-download-a-file-from-a-url-and-save-it-in-rails
+            return path if File::exists?( path )
             begin
-                # http://stackoverflow.com/questions/2515931/how-can-i-download-a-file-from-a-url-and-save-it-in-rails
-                download = open( banner.url )
+                download = open( url )
                 IO.copy_stream( download, path )
             rescue => e
                 return ""
             end
-
             return path
+        end
+
+        def download_banners!( banners, path )
+            FileUtils::mkdir_p( File::dirname( path ) )
+            return if banners.empty?
+            banner = banners.detect{|b| b.url.length }
+            return "" unless banner
+
+            return download_url!( banner.url, path )
+        end
+
+        def episodes( seriesid )
+            unless @episodes.has_key?( seriesid )
+                f = File::open( File::join( series_dir( seriesid ), EPISODES_JSON ) )
+                @episodes[ seriesid ] = JSON::parse( f.read, :symbolize_names => true )
+            end
+            return @episodes[ seriesid ]
+        end
+
+        def each_series_episode_file_status( seriesid, search, downloads, library )
+            today = Date::today.to_s
+
+            series_hash = self[:series].detect{|s| s[:id] == seriesid}
+            return unless series_hash
+
+            episodes( seriesid ).each do | episode_hash |
+                next if episode_hash[:season_number] == 0
+                ep_file = ::TVTime::EpisodeFile.new
+                ep_file.series_id = episode_hash[:id]
+                ep_file.series = series_hash[:name]
+                ep_file.season = episode_hash[:season_number]
+                ep_file.episode = episode_hash[:number]
+                ep_file.title = episode_hash[:name]
+                ep_file.air_date = episode_hash[:air_date]
+                ep_file.thumbnail = episode_hash[:thumb_path]
+
+                if( ( ep_file.air_date == nil ) or ( ep_file.air_date > today ) )
+                    ep_file.percent_done = 0
+                    ep_file.status = :upcoming
+                    ep_file.path = ''
+                elsif( library.exists?( ep_file ) )
+                    ep_file.percent_done = 1
+                    ep_file.status = :cataloged
+                    ep_file.path = library.episode_path( ep_file )
+                elsif( download_path = downloads.get_path_if_exists( ep_file ) )
+                    ep_file.percent_done = 1
+                    ep_file.status = :downloaded
+                    ep_file.path = download_path
+                elsif( torrent = downloads.get_torrent_if_exists( ep_file ) )
+                    ep_file.percent_done = torrent['percentDone']
+                    ep_file.status = :downloading
+                    ep_file.path = ''
+                elsif( magnet_link = search.get_magnet_link_if_exists( ep_file ) )
+                    ep_file.percent_done = 0
+                    ep_file.status = :available
+                    ep_file.path = magnet_link
+                else
+                    ep_file.percent_done = 0
+                    ep_file.status = :missing
+                    ep_file.path = ''
+                end
+                yield( ep_file )
+            end
+        end
+
+
+        def series_dir( seriesid )
+            return File::join( File::dirname( @path ), 'series', seriesid )
         end
 
         def add_series!( series )
             hash = series.to_h
             hash[:banners] = {}
-            meta_path = [ File::dirname( @path ), 'series', hash[:id] ].join( File::SEPARATOR )
-            hash[:banners][:poster] = download_banners!( series.posters( self[:language] ),  [ meta_path, 'poster.jpg' ].join( File::SEPARATOR ) )
-            hash[:banners][:banner] = download_banners!( series.series_banners( self[:language] ),  [ meta_path, 'banner.jpg' ].join( File::SEPARATOR ) )
+            meta_path = series_dir( hash[:id] )
+            hash[:banners][:poster] = download_banners!( series.posters( self[:language] ),  File::join( meta_path, 'poster.jpg' ) )
+            hash[:banners][:banner] = download_banners!( series.series_banners( self[:language] ),  File::join( meta_path, 'banner.jpg' ) )
+
+            episodes = []
+            series.episodes.each do |episode|
+                episode_hash = episode.to_h
+                episode_hash[:thumb_path] = download_url!( episode_hash[:thumb], File::join( meta_path, "#{episode.id}.jpg" ) )
+                episodes << episode_hash
+            end
+            f = File::open( File::join( meta_path, EPISODES_JSON ), 'w' )
+            f.puts JSON::pretty_generate( episodes )
+            f.close()
 
             remove_series!( hash[:id] )
             self[:series] << hash
             leading_the = /^The /
             self[:series].sort!{|a,b| a[:name].gsub(leading_the,'') <=> b[:name].gsub(leading_the,'') }
+            self.save!
         end
 
         def remove_series!( seriesid )
             self[:series].reject!{|s| s[:id] == seriesid }
+            self.save!
         end
 
         def save!
@@ -139,7 +216,7 @@ module TVTime
     end
 
     class EpisodeFile
-        attr_accessor :series_id, :series, :season, :episode, :title, :air_date, :path, :status, :percent_done
+        attr_accessor :series_id, :series, :season, :episode, :title, :air_date, :path, :status, :percent_done, :thumbnail
         attr_writer :type
 
         def type
@@ -165,7 +242,8 @@ module TVTime
                      :air_date => air_date.to_s,
                      :path => path,
                      :status => status,
-                     :percent_done => percent_done
+                     :percent_done => percent_done,
+                     :thumbnail => thumbnail
             }
         end
 
@@ -210,11 +288,11 @@ module TVTime
 
         def episode_glob( episode )
             formatted_title = ::TVTime::format_title( episode.series )
-            return [ @settings[:library_path],
-                     formatted_title,
-                     "Season #{format_season( episode )}",
-                     "#{formatted_title} S#{format_season( episode )}E#{format_episode( episode )}" + ( episode.type or '.*' )
-                   ].join( File::SEPARATOR )
+            return File::join( @settings[:library_path],
+                               formatted_title,
+                               "Season #{format_season( episode )}",
+                               "#{formatted_title} S#{format_season( episode )}E#{format_episode( episode )}" + ( episode.type or '.*' )
+                             )
         end
 
         def episode_path( episode )
@@ -338,9 +416,23 @@ module TVTime
             end
         end
 
+        def download!( path )
+            transmission().create( path ) if transmission()
+        end
+
+        def download_episode_file!( episode_file )
+            if( episode_file.status == :available )
+                magnet_link = episode_file.path
+                puts magnet_link if @settings[:verbose]
+                unless @settings[:dry_run]
+                    download!( magnet_link )
+                end
+            end
+        end
+
         def paths
             return @paths if @paths
-            glob = [ @settings[:download_path], '**/*' ].join( File::SEPARATOR )
+            glob = File::join( @settings[:download_path], '**/*' )
             @paths = Dir::glob( glob )
             @paths = @paths.select{|p| @settings.allowed_type?( p ) }
             return @paths
@@ -444,7 +536,7 @@ module TVTime
             series = find_series_by_id( seriesid )
             if( series )
                 series.episodes.each do | episode |
-                    yield( episode ) if episode.season_number.to_i > 0
+                    yield( episode ) if episode.season_number > 0
                 end
             end
         end
@@ -454,47 +546,6 @@ module TVTime
                 find_episodes_by_seriesid( series_hash[:id] ) do | episode |
                     yield( episode )
                 end
-            end
-        end
-
-
-        def each_series_episode_file_status( seriesid, downloads, library )
-            today = Date::today
-            find_episodes_by_seriesid( seriesid ) do | episode |
-                ep_file = ::TVTime::EpisodeFile.new
-                ep_file.series_id = seriesid
-                ep_file.series = episode.series.name
-                ep_file.season = episode.season_number.to_i
-                ep_file.episode = episode.number.to_i
-                ep_file.title = episode.name
-                ep_file.air_date = episode.air_date
-
-                if( ( ep_file.air_date == nil ) or ( ep_file.air_date > today ) )
-                    ep_file.percent_done = 0
-                    ep_file.status = :upcoming
-                    ep_file.path = ''
-                elsif( library.exists?( ep_file ) )
-                    ep_file.percent_done = 1
-                    ep_file.status = :cataloged
-                    ep_file.path = library.episode_path( ep_file )
-                elsif( download_path = downloads.get_path_if_exists( ep_file ) )
-                    ep_file.percent_done = 1
-                    ep_file.status = :downloaded
-                    ep_file.path = download_path
-                elsif( torrent = downloads.get_torrent_if_exists( ep_file ) )
-                    ep_file.percent_done = torrent['percentDone']
-                    ep_file.status = :downloading
-                    ep_file.path = ''
-                elsif( magnet_link = get_magnet_link_if_exists( ep_file ) )
-                    ep_file.percent_done = 0
-                    ep_file.status = :available
-                    ep_file.path = magnet_link
-                else
-                    ep_file.percent_done = 0
-                    ep_file.status = :missing
-                    ep_file.path = ''
-                end
-                yield( ep_file )
             end
         end
 
@@ -556,7 +607,6 @@ module TVTime
         return nil
     end
 
-
     def self.catalog_downloads!( settings = Settings.new, downloads = Downloads.new( settings ) )
         library = Library.new( settings )
         downloads.each_episode_file do | episode_file |
@@ -570,16 +620,8 @@ module TVTime
         library = Library.new( settings )
         downloads = Downloads.new( settings )
 
-        search.each_series_episode_file_status( seriesid, downloads, library ) do | episode_file |
-            if( episode_file.status == :available )
-                magnet_link = episode_file.path
-                cmd = "open #{magnet_link}"
-                puts cmd if settings[:verbose]
-                unless settings[:dry_run]
-                    system( cmd )
-                    sleep( 5 )
-                end
-            end
+        settings.each_series_episode_file_status( seriesid, search, downloads, library ) do | episode_file |
+            downloads.download_episode_file!( episode_file )
         end
     end
 
@@ -588,26 +630,10 @@ module TVTime
         library = Library.new( settings )
         downloads = Downloads.new( settings )
         settings[:series].each do | series |
-            search.each_series_episode_file_status( series[:id], downloads, library ) do | episode_file |
-                if( episode_file.status == :available )
-                    magnet_link = episode_file.path
-                    cmd = "open #{magnet_link}"
-                    puts cmd if settings[:verbose]
-                    unless settings[:dry_run]
-                        system( cmd )
-                        sleep( 5 )
-                    end
-                end
+            settings.each_series_episode_file_status( series[:id], search, downloads, library ) do | episode_file |
+                downloads.download_episode_file!( episode_file )
             end
         end
-        # search.each_missing_magnet_link( library ) do | magnet_link |
-        #     cmd = "open #{magnet_link}"
-        #     puts cmd if settings[:verbose]
-        #     unless settings[:dry_run]
-        #         system( cmd )
-        #         sleep( 5 )
-        #     end
-        # end
     end
 
 
