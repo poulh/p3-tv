@@ -1,11 +1,11 @@
 #!/usr/bin/ruby
 
-require 'tvtime'
+require 'p3-tv'
 Encoding.default_external = 'UTF-8'
 
-TVTime::Settings::create_default! unless TVTime::Settings::exists?
+P3::TV::Settings::create_default! unless P3::TV::Settings::exists?
 
-settings = TVTime::Settings.new
+settings = P3::TV::Settings.new
 
 case ARGV[0]
 when 'set_tvdb_api_key'
@@ -13,34 +13,34 @@ when 'set_tvdb_api_key'
 when 'settings'
     puts settings.to_h.to_json
 when 'search'
-    search = TVTime::Search.new( settings )
+    search = P3::TV::Search.new( settings )
     results = search.find_series( ARGV[1] )
     results = results.collect{|r| r.to_h }
     puts results.to_json
 when 'add_series'
-    search = TVTime::Search.new( settings )
+    search = P3::TV::Search.new( settings )
     series = search.find_series_by_id( ARGV[1] )
     settings.add_series!( series ) if series
 when 'remove_series'
-    search = TVTime::Search.new( settings )
+    search = P3::TV::Search.new( settings )
     series = search.find_series_by_id( ARGV[1] )
     settings.remove_series!( series.id ) if series
 when 'episode_status'
-    search = TVTime::Search.new( settings )
-    library = TVTime::Library.new( settings )
-    downloads = TVTime::Downloads.new( settings )
+    search = P3::TV::Search.new( settings )
+    library = P3::TV::Library.new( settings )
+    downloads = P3::TV::Downloads.new( settings )
     files = []
     settings.each_series_episode_file_status( ARGV[1], search, downloads, library ) do | episode_file |
         files << episode_file.to_h
     end
     puts files.to_json
 when 'download_missing'
-    TVTime::download_missing_series!( ARGV[1], settings )
+    P3::TV::download_missing_series!( ARGV[1], settings )
 when 'catalog_and_downloads'
-    downloads = TVTime::Downloads.new( settings )
+    downloads = P3::TV::Downloads.new( settings )
 
     if( downloads.remove_completed_torrents! > 0 )
-        TVTime::catalog_downloads!( settings, downloads )
+        P3::TV::catalog_downloads!( settings, downloads )
     end
 
     files = []
@@ -50,7 +50,7 @@ when 'catalog_and_downloads'
     files.sort!{|a,b| b[:percent_done] <=> a[:percent_done] } #highest percent first
     puts files.to_json
 when 'catalog_downloads_for_series'
-    TVTime::catalog_downloads_series!( ARGV[1], settings )
+    P3::TV::catalog_downloads_series!( ARGV[1], settings )
 when 'catalog_downloads'
-    TVTime::catalog_downloads!( settings )
+    P3::TV::catalog_downloads!( settings )
 end

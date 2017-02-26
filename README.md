@@ -1,16 +1,16 @@
-# TVTime
-[![Gem Version](https://badge.fury.io/rb/tvtime.svg)](http://badge.fury.io/rb/tvtime)
+# P3TV
+[![Gem Version](https://badge.fury.io/rb/p3-tv.svg)](http://badge.fury.io/rb/p3-tv)
 
 Organize and rename your TV Shows. Automatically find links to missing shows. Includes Command-Line Utility
 
 ## Installation
-    $ sudo gem install tvtime
+    $ sudo gem install p3-tv
 
 ## Usage
 
-Run 'tvtime' at the command prompt and choose from the menu
+Run 'p3tv' at the command prompt and choose from the menu
 
-    $ tvtime
+    $ p3tv
     1. Search for TV Series
     2. List TV Series
     3. Download Missing Episodes
@@ -25,14 +25,14 @@ Run 'tvtime' at the command prompt and choose from the menu
 
 Fetch a series and get all the magnet links:
 ```ruby
-require 'tvtime'
+require 'p3-tv'
 
-TVTime::Settings::create_default! unless TVTime::Settings::exists?
-TVTime::add_series!( "Black Sails" )
-TVTime::enable_test_mode!( true )
+P3::TV::Settings::create_default! unless P3::TV::Settings::exists?
+P3::TV::add_series!( "Black Sails" )
+P3::TV::enable_test_mode!( true )
 
-TVTime::catalog_downloads!
-TVTime::download_missing!
+P3::TV::catalog_downloads!
+P3::TV::download_missing!
 
 ```
 

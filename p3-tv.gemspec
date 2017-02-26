@@ -3,13 +3,13 @@ lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
-  spec.name          = "tvtime"
-  spec.version       = "0.9.0"
+  spec.name          = "p3-tv"
+  spec.version       = "0.9.1"
   spec.authors       = ["Poul Hornsleth"]
   spec.email         = ["poulh@umich.edu"]
-  spec.summary       = "TV Show Organizer and Renamer"
-  spec.description   = "Organize and rename your TV Shows. Automatically find links to missing shows. Includes Command-Line Utility"
-  spec.homepage      = "https://github.com/poulh/tvtime"
+  spec.summary       = "TV Show Organizer, Renamer, and Downloader"
+  spec.description   = "Organize and rename your TV Shows. Automatically find links to missing shows. Includes Command-Line Utility 'p3tv'"
+  spec.homepage      = "https://github.com/poulh/p3-tv"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")

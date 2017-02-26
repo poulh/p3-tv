@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 
 require 'highline'
-require 'tvtime'
+require 'p3-tv'
 Encoding.default_external = 'UTF-8'
 
 # Basic usage
@@ -15,13 +15,13 @@ Signal::trap("TERM") do
 end
 
 
-TVTime::Settings::create_default! unless TVTime::Settings::exists?
+P3::TV::Settings::create_default! unless P3::TV::Settings::exists?
 
 
 cli = HighLine.new
 
 begin
-    settings = TVTime::Settings.new
+    settings = P3::TV::Settings.new
 
     cli.say("\n")
     cli.say("\n")
@@ -34,14 +34,14 @@ begin
 
         main_menu.choice("Catalog Downloads") do
             confirm = cli.ask("This command will move any episodes from your download dir to your Library. Are you sure? [Y/N] ") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-            TVTime::catalog_downloads!( settings ) if confirm.downcase == 'y'
+            P3::TV::catalog_downloads!( settings ) if confirm.downcase == 'y'
         end
 
 
 
         main_menu.choice("Download Missing Episodes") do
             confirm = cli.ask("This command will open any missing magnet links. Are you sure? [Y/N]") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-            TVTime::download_missing!( settings ) if confirm.downcase == 'y'
+            P3::TV::download_missing!( settings ) if confirm.downcase == 'y'
         end
 
 
@@ -49,7 +49,7 @@ begin
             cli.choose do | series_menu |
                 series_menu.choice("Add Series") do
                     title = cli.ask "What series would you like to search for?"
-                    search = TVTime::Search.new( settings )
+                    search = P3::TV::Search.new( settings )
                     results = search.find_series( title )
                     cli.choose do | results_menu |
                         results_menu.prompt = "Which series would you like to add?"
@@ -96,7 +96,7 @@ begin
                 {:library_path => 'Library', :download_path => 'Download' }.each do | k, v |
                     dir_menu.choice( "Update #{v} Path" ) do
                         path = cli.ask('Enter New Path')
-                        TVTime::Settings::set!( k, path )
+                        P3::TV::Settings::set!( k, path )
                     end
                     dir_menu.choice( "Open #{v} Path" ) do
                         cmd = "open '#{settings[k]}'"
@@ -110,13 +110,13 @@ begin
         end
 
 
-        main_menu.choice("Toggle Test Mode ( Currently #{TVTime::test_mode_enabled? ? 'Enabled' : 'Disabled'} )") do
-            TVTime::enable_test_mode!( !TVTime::test_mode_enabled? )
+        main_menu.choice("Toggle Test Mode ( Currently #{P3::TV::test_mode_enabled? ? 'Enabled' : 'Disabled'} )") do
+            P3::TV::enable_test_mode!( !P3::TV::test_mode_enabled? )
         end
 
         main_menu.choice("Set TVDB API Key ( #{settings[:tvdb_api_key] or 'Not Set'} )") do
             tvdb_api_key = cli.ask('Enter TVDB API Key ( http://www.thetvdb.com/?tab=register )')
-            TVTime::Settings::set!(:tvdb_api_key, tvdb_api_key )
+            P3::TV::Settings::set!(:tvdb_api_key, tvdb_api_key )
         end
 
         main_menu.choice("Reload Settings") do
