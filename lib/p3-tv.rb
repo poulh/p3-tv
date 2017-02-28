@@ -513,10 +513,15 @@ module P3
 	end
 
 	class Search
+            # please don't steal my key. it is very easy to get one for your
+            # app here: http://thetvdb.com/index.php?tab=apiregister
+            # they won't spam you and its free
+            TVDB_API_KEY = '70BE8DAF03F45D4A'
+            
 	    def initialize( settings = Settings.new )
 		@settings = settings
-		raise "tvdb api key required" unless @settings[:tvdb_api_key]
-		@tvdb = P3::Tvdb::Search.new( @settings[:tvdb_api_key] )
+
+		@tvdb = P3::Tvdb::Search.new( TVDB_API_KEY )
 		@eztv = {}
 	    end
 

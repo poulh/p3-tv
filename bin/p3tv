@@ -114,11 +114,6 @@ begin
             P3::TV::enable_test_mode!( !P3::TV::test_mode_enabled? )
         end
 
-        main_menu.choice("Set TVDB API Key ( #{settings[:tvdb_api_key] or 'Not Set'} )") do
-            tvdb_api_key = cli.ask('Enter TVDB API Key ( http://www.thetvdb.com/?tab=register )')
-            P3::TV::Settings::set!(:tvdb_api_key, tvdb_api_key )
-        end
-
         main_menu.choice("Reload Settings") do
             puts "reloaded" # will be reloaded on next loop
         end
