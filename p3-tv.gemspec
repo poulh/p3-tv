@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = "p3-tv"
-  spec.version       = "0.10.0"
+  spec.version       = "0.10.1"
   spec.authors       = ["Poul Hornsleth"]
   spec.email         = ["poulh@umich.edu"]
   spec.summary       = "TV Show Organizer, Renamer, and Downloader"

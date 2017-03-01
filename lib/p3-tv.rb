@@ -10,13 +10,11 @@ module P3
     module TV
         class Settings
             attr_accessor :path
-            DEPRECATED_PATH = File::expand_path( "~/.p3tv" )
             DEFAULT_PATH = File::expand_path( "~/.p3tv/p3tv" )
             EPISODES_JSON = 'episodes.json'
             DEFAULTS = {
-                :library_path => '~/Movies',
+                :library_path => '~/Movies/P3TV',
                 :download_path => '~/Downloads',
-                :create_p3tv_dir => true,
                 :delete_duplicate_downloads => false,
                 :overwrite_duplicates => false,
                 :allowed_types => ['.avi', '.mkv', '.mp4'],
@@ -29,14 +27,7 @@ module P3
             }
 
             def self.exists?( path = DEFAULT_PATH )
-                if( File::directory?( DEPRECATED_PATH ) )
-                    return File::exists?( path )
-                else
-                    if( File::exists?( DEPRECATED_PATH ) )
-                        puts "please move your settings file #{DEPRECATED_PATH} to #{DEFAULT_PATH}"
-                        return false
-                    end
-                end
+                return File::exists?( path )
             end
 
             def self.create_default!( path = DEFAULT_PATH )
@@ -68,7 +59,6 @@ module P3
                 @values = JSON::parse( f.read, :symbolize_names => true )
                 f.close
 
-                self[:library_path] = File::join( self[:library_path], "P3TV" ) if self[:create_p3tv_dir ]
                 self[:library_path] = File::expand_path( self[:library_path ] )
                 self[:download_path] = File::expand_path( self[:download_path ] )
                 self[:series].uniq!
