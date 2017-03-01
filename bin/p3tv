@@ -100,7 +100,7 @@ begin
                     end
                     dir_menu.choice( "Open #{v} Path" ) do
                         cmd = "open '#{settings[k]}'"
-                        puts cmd
+                        cmd = "xdg-#{cmd} 2>/dev/null" if Gem::Platform::local::os == "linux"
                         system( cmd )
                     end
                 end

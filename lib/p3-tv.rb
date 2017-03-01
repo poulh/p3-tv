@@ -60,6 +60,8 @@ module P3
                 f.close
 
                 self[:library_path] = File::expand_path( self[:library_path ] )
+                FileUtils::mkdir_p( self[:library_path] )
+
                 self[:download_path] = File::expand_path( self[:download_path ] )
                 self[:series].uniq!
 
@@ -434,7 +436,13 @@ module P3
             end
 
             def download!( path )
-                transmission().create( path ) if transmission()
+                if transmission()
+                    transmission().create( path )
+                else
+                    cmd = "open #{path}"
+                    cmd = "xdg-#{cmd} 2>/dev/null" if Gem::Platform::local::os == "linux"
+                    system( cmd )
+                end
             end
 
             def download_episode_file!( episode_file )
