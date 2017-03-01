@@ -113,8 +113,11 @@ module P3
 
             def episodes( seriesid )
                 unless @episodes.has_key?( seriesid )
-                    f = File::open( File::join( series_dir( seriesid ), EPISODES_JSON ) )
-                    @episodes[ seriesid ] = JSON::parse( f.read, :symbolize_names => true )
+                    episode_file = File::join( series_dir( seriesid ), EPISODES_JSON )
+                    if( File::exists?( episode_file ) )
+                        f = File::open( episode_file )
+                        @episodes[ seriesid ] = JSON::parse( f.read, :symbolize_names => true )
+                    end
                 end
                 return @episodes[ seriesid ]
             end
@@ -170,13 +173,8 @@ module P3
                 return File::join( File::dirname( @path ), 'series', seriesid )
             end
 
-            def add_series!( series )
-                hash = series.to_h
-                hash[:banners] = {}
-                meta_path = series_dir( hash[:id] )
-                hash[:banners][:poster] = download_banners!( series.posters( self[:language] ),  File::join( meta_path, 'poster.jpg' ) )
-                hash[:banners][:banner] = download_banners!( series.series_banners( self[:language] ),  File::join( meta_path, 'banner.jpg' ) )
-
+            def download_episodes!( series )
+                meta_path = series_dir( series.id )
                 episodes = []
                 series.episodes.each do |episode|
                     episode_hash = episode.to_h
@@ -187,11 +185,39 @@ module P3
                 f.puts JSON::pretty_generate( episodes )
                 f.close()
 
+                @episodes.delete( series.id ) #clear the cache
+            end
+
+            def add_series!( series )
+                meta_path = series_dir( series.id )
+
+                hash = series.to_h
+                hash[:banners] = {}
+                hash[:banners][:poster] = download_banners!( series.posters( self[:language] ),  File::join( meta_path, 'poster.jpg' ) )
+                hash[:banners][:banner] = download_banners!( series.series_banners( self[:language] ),  File::join( meta_path, 'banner.jpg' ) )
+
+                download_episodes!( series )
+
                 remove_series!( hash[:id] )
                 self[:series] << hash
                 leading_the = /^The /
                 self[:series].sort!{|a,b| a[:name].gsub(leading_the,'') <=> b[:name].gsub(leading_the,'') }
                 self.save!
+            end
+
+            def update_series!( series )
+                return unless series.status == "Continuing"
+
+                ep = self.episodes( series.id )
+                return unless( ep )
+
+                ep.select!{|e| e[:air_date] }
+                ep.sort!{|a,b| b[:air_date] <=> a[:air_date] } #newest episode first
+
+                today = Date::today.to_s
+                if( ep.empty? or ( ep[0][:air_date] < today ) )
+                    download_episodes!( series )
+                end
             end
 
             def remove_series!( seriesid )

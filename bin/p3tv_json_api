@@ -42,6 +42,10 @@ when 'remove_series'
     search = P3::TV::Search.new( settings )
     series = search.find_series_by_id( ARGV[1] )
     settings.remove_series!( series.id ) if series
+when 'update_series'
+    search = P3::TV::Search.new( settings )
+    series = search.find_series_by_id( ARGV[1] )
+    settings.update_series!( series ) if series
 when 'episode_status'
     search = P3::TV::Search.new( settings )
     library = P3::TV::Library.new( settings )
