@@ -1,0 +1,137 @@
+#!/usr/bin/ruby
+
+require 'p3-tv'
+require 'sinatra/base'
+
+Encoding.default_external = 'UTF-8'
+
+P3::TV::Settings::create_default! unless P3::TV::Settings::exists?
+
+module P3
+    module TV
+        class WebApi < Sinatra::Base
+            configure do
+                set :bind, '0.0.0.0'
+                
+                tv = P3::TV::Settings.new
+                set :tv, tv
+            end
+
+
+            get '/settings' do
+                return settings.tv.to_h.to_json
+            end
+
+            get '/exit' do
+                P3::TV::WebApi::quit!
+                return { :success => true }.to_json
+            end
+
+            get '/set' do
+                tv = settings.tv
+                begin
+                    tv[ params['key'] ] = Integer( params['val'] )
+                rescue
+                    begin
+                        tv[ params['key'] ] = Float( params['val'] )
+                    rescue
+                        case params['val']
+                        when "true"
+                            tv[ params['key'] ] = true
+                        when "false"
+                            tv[ params['key'] ] = false
+                        else
+                            tv[ params['key'] ] = params['val'] #string
+                        end
+                    end
+                end
+                return { :success => true }.to_json
+            end
+
+            get '/search' do
+
+                search = P3::TV::Search.new( settings.tv )
+                results = search.find_series( params['key'] )
+                results = results.collect{|r| r.to_h }
+                return results.to_json
+            end
+            
+            get '/add_series' do
+                tv = settings.tv
+                search = P3::TV::Search.new( tv )
+                series = search.find_series_by_id( params['key'] )
+                tv.add_series!( series ) if series
+                return { :success => true }.to_json
+            end
+
+            get '/remove_series' do
+                tv = settings.tv
+                search = P3::TV::Search.new( tv )
+                series = search.find_series_by_id( params['key'] )
+                tv.remove_series!( series.id ) if series
+                return { :success => true }.to_json
+            end
+
+            get '/update_series' do
+                tv = settings.tv
+                if( tv[:series].detect{|s| s[:id] == params['key'] } ) #only update series that have already been added
+                    search = P3::TV::Search.new( tv )
+                    series = search.find_series_by_id( params['key'] )
+                    tv.update_series!( series ) if series
+                end
+                return { :success => true }.to_json
+            end
+
+            get '/episode_status' do
+                tv = settings.tv
+                search = P3::TV::Search.new( tv )
+                library = P3::TV::Library.new( tv )
+                downloads = P3::TV::Downloads.new( tv )
+                files = []
+                tv.each_series_episode_file_status( params['key'], search, downloads, library ) do | episode_file |
+                    files << episode_file.to_h
+                end
+                return files.to_json
+            end
+
+            get '/download_missing' do
+                tv = settings.tv
+                P3::TV::download_missing_series!( params['key'], tv )
+                return { :success => true }.to_json
+            end
+
+            get '/catalog_and_downloads' do
+                tv = settings.tv
+                
+                downloads = P3::TV::Downloads.new( tv )
+                
+                if( downloads.remove_completed_torrents! > 0 )
+                    P3::TV::catalog_downloads!( tv, downloads )
+                end
+                
+                files = []
+                downloads.each_downloading_file do | episode_file |
+                    files << episode_file.to_h
+                end
+                files.sort!{|a,b| b[:percent_done] <=> a[:percent_done] } #highest percent first
+                return files.to_json
+            end
+
+            get '/catalog_downloads_for_series' do
+                tv = settings.tv
+                P3::TV::catalog_downloads_series!( params['key'], tv )
+                return { :success => true }.to_json
+            end
+
+            get '/catalog_downloads' do
+                tv = settings.tv
+                P3::TV::catalog_downloads!( tv )
+                return { :success => true }.to_json
+            end
+
+            
+        end
+    end
+end
+
+P3::TV::WebApi::run!
