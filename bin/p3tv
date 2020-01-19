@@ -112,6 +112,6 @@ loop do
       exit(0)
     end
 
-    main_menu.choice(:quit, &q)
+    main_menu.choice('Quit', &q)
   end
 end
