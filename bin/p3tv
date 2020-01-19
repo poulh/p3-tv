@@ -48,6 +48,9 @@ loop do
           cli.choose do |results_menu|
             results_menu.prompt = 'Which series would you like to add?'
             results.each do |series|
+              next unless series.network
+              next unless series.name
+
               results_menu.choice(series.name + ' : ' + series.network) do
                 settings.add_series!(series)
                 settings.save!
@@ -76,6 +79,7 @@ loop do
 
         series_menu.choice('List TV Series') do
           settings[:series].each do |series|
+            print(series.to_h)
             cli.say(series[:name] + ' : ' + series[:network])
           end
         end

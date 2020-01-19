@@ -3,7 +3,7 @@
 module P3
   module TV
     class Downloads
-      REGEX = [/[sS](\d{1,2})[eE](\d{1,2})/, # s1e2, s01e02, S1E02, S01E2
+      REGEX = [/[sS](\d{1,2})[eE][pP]?(\d{1,2})/, # s1e2, s01e02, S1E02, S01E2, s01ep2
                /(\d{1,2})x(\d{1,2})/].freeze # 1x2, 01x2, 1x02, 01x02.freeze
 
       def initialize(settings = Settings.new)

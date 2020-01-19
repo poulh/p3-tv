@@ -18,7 +18,9 @@ module P3
 
       def find_series(title)
         results = @tvdb.search(title)
+
         results.select! { |r| r['FirstAired'] } # must have this field
+        results.select! { |r| r['SeriesName'].include?(title) } # tvdb returns titles that are close. i want exact matches
 
         # assume the more-recent show first
         results.sort! { |a, b| b['FirstAired'] <=> a['FirstAired'] }
@@ -61,6 +63,6 @@ module P3
 
         nil
       end
-  end
     end
   end
+end
