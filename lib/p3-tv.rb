@@ -52,10 +52,10 @@ module P3
 
     def self.catalog_file!(path, settings = Settings.new)
       downloads = Downloads.new(settings)
-      return if settings.allowed_type?(path)
+      return if settings.supported_file_extension?(path)
 
       library = Library.new(settings)
-      episode = downloads.create_episode_from_filename(path)
+      episode = downloads.create_episode_path(path)
       library.catalog!(episode) if episode
       nil
     end

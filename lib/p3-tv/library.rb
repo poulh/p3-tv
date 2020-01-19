@@ -44,17 +44,21 @@ module P3
       def catalog!(episode)
         cataloged_path = episode_path(episode)
         cataloged_dir = File.dirname(cataloged_path)
+        dry_run = @settings[:dry_run]
+        verbose = @settings[:verbose]
+        episode_path = episode.path
 
         unless File.exist?(cataloged_dir)
-          FileUtils.mkdir_p(cataloged_dir, noop: @settings[:dry_run], verbose: @settings[:verbose])
+          FileUtils.mkdir_p(cataloged_dir, noop: dry_run, verbose: verbose)
         end
 
         if !File.exist?(cataloged_path) || @settings[:overwrite_duplicates]
-          FileUtils.move(episode.path, cataloged_path, noop: @settings[:dry_run], verbose: @settings[:verbose], force: true)
+          FileUtils.move(episode_path, cataloged_path,
+                         noop: dry_run, verbose: verbose, force: true)
         elsif @settings[:delete_duplicate_downloads]
-          FileUtils.remove(episode.path, noop: @settings[:dry_run], verbose: @settings[:verbose])
-        else
-          warn "file exists. doing nothing: #{cataloged_path}" if @settings[:verbose]
+          FileUtils.remove(episode_path, noop: dry_run, verbose: verbose)
+        elsif verbose
+          warn "file exists. doing nothing: #{cataloged_path}"
         end
       end
     end

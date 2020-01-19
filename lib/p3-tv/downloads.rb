@@ -13,57 +13,56 @@ module P3
         @torrents = nil
       end
 
-      def path_match_series(path, series_name)
-        return unless P3::TV.path_contains_series?(path, series_name)
-
+      def extract_episode_from_path(path, _series_name)
         REGEX.each do |regex|
           match_data = path.match(regex)
           if match_data
-            yield(match_data)
-            return
+            return {
+              season_number: match_data[1].to_i,
+              number: match_data[2].to_i
+            }
           end
         end
+        nil
       end
 
-      def path_match(path)
+      def extract_series_episode_from_path(path)
         @settings[:series].each do |series|
-          path_match_series(path, series[:name]) do |match_data|
-            yield(series, match_data)
-            return
-          end
+          series_name = series[:name]
+          next unless P3::TV.path_contains_series?(path, series_name)
+
+          episode_hash = extract_episode_from_path(path)
+          return { series: series, episode: episode_hash } if expisode_hash
         end
+        nil
       end
 
-      def create_episode_from_filename_series(path, seriesid, series_name)
-        e = nil
-        path_match_series(path, series_name) do |match_data|
-          e = EpisodeFile.new
-          e.series_id = seriesid
-          e.series = series_name
-          e.season = match_data[1].to_i
-          e.episode = match_data[2].to_i
-          e.path = path
-        end
-        e
+      def create_episode_from_path_series(path, series_id, series_name)
+        return nil unless P3::TV.path_contains_series?(path, series_name)
+
+        series_hash = { id: series_id, name: series_name }
+        episode_hash = extract_episode_from_path(path)
+        return EpisodeFile.new(series_hash, episode_hash) if episode_hash
+
+        nil
       end
 
-      def create_episode_from_filename(path)
-        e = nil
-        path_match(path) do |series, match_data|
-          e = EpisodeFile.new
-          e.series_id = series[:id]
-          e.series = series[:name]
-          e.season = match_data[1].to_i
-          e.episode = match_data[2].to_i
-          e.path = path
+      def create_episode_from_path(path)
+        series_episode_hash = extract_series_episode_from_path(path)
+
+        if series_episode_hash
+          series_hash = series_episode_hash[:series]
+          episode_hash = series_episode_hash[:episode]
+          return EpisodeFile.new(series_hash, episode_hash)
         end
-        e
+
+        nil
       end
 
       def each_episode_file_in_series(seriesid)
         series = @settings.get_series(seriesid)
         if series
-          episode_files = paths.collect { |path| create_episode_from_filename_series(path, series[:id], series[:name]) }
+          episode_files = paths.collect { |path| create_episode_from_path_series(path, series[:id], series[:name]) }
           episode_files.each do |episode_file|
             yield(episode_file) if episode_file
           end
@@ -71,10 +70,12 @@ module P3
       end
 
       def each_episode_file
-        episode_files = paths.collect { |path| create_episode_from_filename(path) }
-        episode_files.each do |episode_file|
-          next unless episode_file
+        globbed_files = globbed_file_paths.collect do |path|
+          create_episode_from_path(path)
+        end
 
+        episode_files = globbed_files.compact # remove nils
+        episode_files.each do |episode_file|
           episode_file.status = :downloaded
           episode_file.percent_done = 1
           yield(episode_file)
@@ -83,7 +84,8 @@ module P3
 
       def each_downloading_file
         torrents.each do |torrent|
-          episode_file = create_episode_from_filename(torrent['name'])
+          path = torrent['name']
+          episode_file = create_episode_from_path(path)
           next unless episode_file
 
           episode_file.status = :downloading
@@ -110,12 +112,12 @@ module P3
         end
       end
 
-      def paths
+      def globbed_file_paths
         return @paths if @paths
 
         glob = File.join(@settings[:download_path], '**/*')
-        @paths = Dir.glob(glob)
-        @paths = @paths.select { |p| @settings.allowed_type?(p) }
+        all_files = Dir.glob(glob)
+        @paths = all_files.select { |p| @settings.supported_file_extension?(p) }
         @paths
       end
 
@@ -154,7 +156,7 @@ module P3
       end
 
       def get_path_if_exists(episode_file)
-        episode_files = paths.collect { |p| create_episode_from_filename_series(p, episode_file.series_id, episode_file.series) }
+        episode_files = paths.collect { |path| create_episode_from_path_series(path, episode_file.series_id, episode_file.series) }
         episode_files.select! { |ef| ef }
         episode_files.each do |dn_ep| # download_episode_file
           return dn_ep.path if (episode_file <=> dn_ep) == 0
@@ -164,8 +166,8 @@ module P3
 
       def get_torrent_if_exists(episode_file)
         torrents.each do |torrent|
-          name = torrent['name']
-          torrent_episode = create_episode_from_filename_series(name, episode_file.series_id, episode_file.series)
+          path = torrent['name']
+          torrent_episode = create_episode_from_path_series(path, episode_file.series_id, episode_file.series)
           next unless torrent_episode
           return torrent if (episode_file <=> torrent_episode) == 0
         end

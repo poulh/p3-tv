@@ -50,7 +50,8 @@ module P3
         FileUtils::mkdir_p( File::dirname( @path ) )
 
         f = File::open( @path, 'r' )
-        @values = JSON::parse( f.read, :symbolize_names => true )
+        @values = JSON.parse(f.read, symbolize_names: true)
+        
         f.close
 
         self[:library_path] = File::expand_path( self[:library_path ] )
@@ -65,11 +66,11 @@ module P3
       end
 
       def to_h
-        return @values
+        @values
       end
 
       def []( key )
-        return @values[ key.to_sym ]
+        @values[ key.to_sym ]
       end
 
       def []=( key, value )
@@ -77,8 +78,8 @@ module P3
         self.save!
       end
 
-      def allowed_type?( path )
-        return ( self[:allowed_types].include?( File::extname( path ) ) or self[:subtitles].include?( File::extname( path ) ) )
+      def supported_file_extension?(path)
+        return ( self[:allowed_types].include?( File::extname( path ) ) or self[:allowed_types].include?( File::extname( path ) ) )
       end
 
       def get_series( seriesid )

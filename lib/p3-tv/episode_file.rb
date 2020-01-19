@@ -6,6 +6,14 @@ module P3
       attr_accessor :series_id, :series, :season, :episode, :title, :air_date, :path, :status, :percent_done, :thumbnail
       attr_writer :type
 
+      def initialize(series, episode)
+        @series_id = series[:id]
+        @series = series[:name]
+        @season = episode[:season_number]
+        @episode = episode[:number]
+        @path = path
+      end
+
       def type
         unless @type
           if @path
