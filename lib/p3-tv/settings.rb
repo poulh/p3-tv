@@ -78,6 +78,14 @@ module P3
         self.save!
       end
 
+      def supported_paths_in_dir(dir = self[:download_path])
+        glob = File.join(dir, '**/*')
+        all_file_paths = Dir.glob(glob)
+        all_file_paths.select do |file_path|
+          supported_file_extension?(file_path)
+        end
+      end
+
       def supported_file_extension?(path)
         return ( self[:allowed_types].include?( File::extname( path ) ) or self[:allowed_types].include?( File::extname( path ) ) )
       end

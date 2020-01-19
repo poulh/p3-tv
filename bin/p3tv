@@ -30,8 +30,24 @@ loop do
     main_menu.prompt = 'What do you want to do?'
 
     main_menu.choice('Catalog Downloads') do
-      confirm = cli.ask('This command will move any episodes from your download dir to your Library. Are you sure? [Y/N] ') { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-      P3::TV.catalog_downloads!(settings) if confirm.downcase == 'y'
+      episode_files = P3::TV.episode_files_in_downloads(settings)
+      if episode_files.empty?
+        puts 'Nothing to catalog'
+        next
+      end
+
+      episode_files.each do |episode_file|
+        puts episode_file
+      end
+
+      confirm = cli.ask('This command will move the above episodes from your download dir to your Library. Are you sure? [Y/N] ') { |yn| yn.limit = 1, yn.validate = /[yn]/i }
+      P3::TV.catalog_episode_files!(settings, episode_files) if confirm.downcase == 'y'
+    end
+
+    main_menu.choice('View Potential Episodes') do
+      P3::TV.view_potential_episodes(settings).each do |path|
+        puts path
+      end
     end
 
     main_menu.choice('Download Missing Episodes') do

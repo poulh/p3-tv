@@ -71,12 +71,34 @@ module P3
       nil
     end
 
-    def self.catalog_downloads!(settings = Settings.new, downloads = Downloads.new(settings))
+    # deprecated. leaving for json_api until i refactor
+    def self.catalog_downloads!(settings = Settings.new,
+                                downloads = Downloads.new(settings))
+      episode_files = episode_files_in_downloads(settings, downloads)
+      catalog_episode_files!(settings, episode_files)
+      nil
+    end
+
+    def self.episode_files_in_downloads(settings = Settings.new,
+                                        downloads = Downloads.new(settings))
+      downloads.episode_files
+    end
+
+    def self.catalog_episode_files!(settings = Settings.new, episode_files)
       library = Library.new(settings)
-      downloads.each_episode_file do |episode_file|
+      episode_files.each do |episode_file|
         library.catalog!(episode_file)
       end
       nil
+    end
+
+    def self.view_potential_episodes(settings = Settings.new)
+      potential_episode_paths = settings.supported_paths_in_dir
+      potential_episode_paths.reject! do |path|
+        Downloads.extract_episode_from_path(path).nil?
+      end
+
+      potential_episode_paths
     end
 
     def self.download_missing_series!(seriesid, settings = Settings.new)

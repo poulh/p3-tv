@@ -2,6 +2,7 @@
 
 module P3
   module TV
+    # a mixture of Torrent download status and checking the file once downloaded
     class Downloads
       REGEX = [/[sS](\d{1,2})[eE][pP]?(\d{1,2})/, # s1e2, s01e02, S1E02, S01E2, s01ep2
                /(\d{1,2})x(\d{1,2})/].freeze # 1x2, 01x2, 1x02, 01x02.freeze
@@ -9,17 +10,18 @@ module P3
       def initialize(settings = Settings.new)
         @settings = settings
         @transmission = nil
-        @paths = nil
+
         @torrents = nil
       end
 
-      def extract_episode_from_path(path, _series_name)
+      def self.extract_episode_from_path(path)
         REGEX.each do |regex|
           match_data = path.match(regex)
           if match_data
             return {
               season_number: match_data[1].to_i,
-              number: match_data[2].to_i
+              number: match_data[2].to_i,
+              path: path
             }
           end
         end
@@ -31,8 +33,8 @@ module P3
           series_name = series[:name]
           next unless P3::TV.path_contains_series?(path, series_name)
 
-          episode_hash = extract_episode_from_path(path)
-          return { series: series, episode: episode_hash } if expisode_hash
+          episode_hash = Downloads.extract_episode_from_path(path)
+          return { series: series, episode: episode_hash } if episode_hash
         end
         nil
       end
@@ -69,16 +71,15 @@ module P3
         end
       end
 
-      def each_episode_file
-        globbed_files = globbed_file_paths.collect do |path|
+      def episode_files
+        episode_files = @settings.supported_paths_in_dir.collect do |path|
           create_episode_from_path(path)
         end
 
-        episode_files = globbed_files.compact # remove nils
-        episode_files.each do |episode_file|
+        episode_files.compact.collect do |episode_file|
           episode_file.status = :downloaded
           episode_file.percent_done = 1
-          yield(episode_file)
+          episode_file
         end
       end
 
@@ -110,15 +111,6 @@ module P3
           puts magnet_link if @settings[:verbose]
           download!(magnet_link) unless @settings[:dry_run]
         end
-      end
-
-      def globbed_file_paths
-        return @paths if @paths
-
-        glob = File.join(@settings[:download_path], '**/*')
-        all_files = Dir.glob(glob)
-        @paths = all_files.select { |p| @settings.supported_file_extension?(p) }
-        @paths
       end
 
       def transmission

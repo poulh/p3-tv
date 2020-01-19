@@ -11,7 +11,7 @@ module P3
         @series = series[:name]
         @season = episode[:season_number]
         @episode = episode[:number]
-        @path = path
+        @path = episode[:path]
       end
 
       def type
