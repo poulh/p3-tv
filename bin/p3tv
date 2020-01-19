@@ -1,4 +1,5 @@
 #!/usr/bin/ruby
+# frozen_string_literal: true
 
 require 'highline'
 require 'p3-tv'
@@ -6,120 +7,111 @@ Encoding.default_external = 'UTF-8'
 
 # Basic usage
 
-Signal::trap("INT") do
-    exit
+Signal.trap('INT') do
+  exit
 end
 
-Signal::trap("TERM") do
-    exit
+Signal.trap('TERM') do
+  exit
 end
 
-
-P3::TV::Settings::create_default! unless P3::TV::Settings::exists?
-
+P3::TV::Settings.create_default! unless P3::TV::Settings.exists?
 
 cli = HighLine.new
 
-begin
-    settings = P3::TV::Settings.new
+loop do
+  settings = P3::TV::Settings.new
 
-    cli.say("\n")
-    cli.say("\n")
-    cli.say("\n")
+  cli.say("\n")
+  cli.say("\n")
+  cli.say("\n")
 
-    cli.choose do | main_menu |
+  cli.choose do |main_menu|
+    main_menu.prompt = 'What do you want to do?'
 
-        main_menu.prompt = "What do you want to do?"
-
-
-        main_menu.choice("Catalog Downloads") do
-            confirm = cli.ask("This command will move any episodes from your download dir to your Library. Are you sure? [Y/N] ") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-            P3::TV::catalog_downloads!( settings ) if confirm.downcase == 'y'
-        end
-
-
-
-        main_menu.choice("Download Missing Episodes") do
-            confirm = cli.ask("This command will open any missing magnet links. Are you sure? [Y/N]") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-            P3::TV::download_missing!( settings ) if confirm.downcase == 'y'
-        end
-
-
-        main_menu.choice("Manage Series") do
-            cli.choose do | series_menu |
-                series_menu.choice("Add Series") do
-                    title = cli.ask "What series would you like to search for?"
-                    search = P3::TV::Search.new( settings )
-                    results = search.find_series( title )
-                    cli.choose do | results_menu |
-                        results_menu.prompt = "Which series would you like to add?"
-                        results.each do | series |
-                            results_menu.choice( series.name + ' : ' + series.network ) do
-                                settings.add_series!( series )
-                                settings.save!
-                            end
-                        end
-                        results_menu.choice( "cancel" ) do
-                        end
-                    end
-                end
-
-                series_menu.choice("Delete Series") do
-
-                    cli.choose do | delete_menu |
-                        delete_menu.prompt = "Which series would you like to delete?"
-                        settings[:series].each do | series |
-                            delete_menu.choice( series[:name] + ' : ' + series[:network] ) do
-                                confirm = cli.ask("Are you sure? [Y/N]") { |yn| yn.limit = 1, yn.validate = /[yn]/i }
-                                settings.remove_series!( series[:id] ) if confirm.downcase == 'y'
-                                settings.save!
-                            end
-                        end
-
-                        delete_menu.choice( "cancel" ) do
-                        end
-                    end
-                end
-
-                series_menu.choice("List TV Series") do
-                    settings[:series].each do | series |
-                        cli.say( series[:name] + ' : ' + series[:network] )
-                    end
-                end
-
-            end
-        end
-
-
-        main_menu.choice("Manage Directories") do
-            cli.choose do | dir_menu |
-                {:library_path => 'Library', :download_path => 'Download' }.each do | k, v |
-                    dir_menu.choice( "Update #{v} Path" ) do
-                        path = cli.ask('Enter New Path')
-                        P3::TV::Settings::set!( k, path )
-                    end
-                    dir_menu.choice( "Open #{v} Path" ) do
-                        cmd = "open '#{settings[k]}'"
-                        cmd = "xdg-#{cmd} 2>/dev/null" if Gem::Platform::local::os == "linux"
-                        system( cmd )
-                    end
-                end
-                dir_menu.choice( "cancel" ) do
-                end
-            end
-        end
-
-
-        main_menu.choice("Toggle Test Mode ( Currently #{P3::TV::test_mode_enabled? ? 'Enabled' : 'Disabled'} )") do
-            P3::TV::enable_test_mode!( !P3::TV::test_mode_enabled? )
-        end
-
-        main_menu.choice("Reload Settings") do
-            puts "reloaded" # will be reloaded on next loop
-        end
-
-        main_menu.choice("quit") do
-            exit(0)
-        end
+    main_menu.choice('Catalog Downloads') do
+      confirm = cli.ask('This command will move any episodes from your download dir to your Library. Are you sure? [Y/N] ') { |yn| yn.limit = 1, yn.validate = /[yn]/i }
+      P3::TV.catalog_downloads!(settings) if confirm.downcase == 'y'
     end
-end while true
+
+    main_menu.choice('Download Missing Episodes') do
+      confirm = cli.ask('This command will open any missing magnet links. Are you sure? [Y/N]') { |yn| yn.limit = 1, yn.validate = /[yn]/i }
+      P3::TV.download_missing!(settings) if confirm.downcase == 'y'
+    end
+
+    main_menu.choice('Manage Series') do
+      cli.choose do |series_menu|
+        series_menu.choice('Add Series') do
+          title = cli.ask 'What series would you like to search for?'
+          search = P3::TV::Search.new(settings)
+          results = search.find_series(title)
+          cli.choose do |results_menu|
+            results_menu.prompt = 'Which series would you like to add?'
+            results.each do |series|
+              results_menu.choice(series.name + ' : ' + series.network) do
+                settings.add_series!(series)
+                settings.save!
+              end
+            end
+            results_menu.choice('cancel') do
+            end
+          end
+        end
+
+        series_menu.choice('Delete Series') do
+          cli.choose do |delete_menu|
+            delete_menu.prompt = 'Which series would you like to delete?'
+            settings[:series].each do |series|
+              delete_menu.choice(series[:name] + ' : ' + series[:network]) do
+                confirm = cli.ask('Are you sure? [Y/N]') { |yn| yn.limit = 1, yn.validate = /[yn]/i }
+                settings.remove_series!(series[:id]) if confirm.downcase == 'y'
+                settings.save!
+              end
+            end
+
+            delete_menu.choice('cancel') do
+            end
+          end
+        end
+
+        series_menu.choice('List TV Series') do
+          settings[:series].each do |series|
+            cli.say(series[:name] + ' : ' + series[:network])
+          end
+        end
+      end
+    end
+
+    main_menu.choice('Manage Directories') do
+      cli.choose do |dir_menu|
+        { library_path: 'Library', download_path: 'Download' }.each do |k, v|
+          dir_menu.choice("Update #{v} Path") do
+            path = cli.ask('Enter New Path')
+            P3::TV::Settings.set!(k, path)
+          end
+          dir_menu.choice("Open #{v} Path") do
+            cmd = "open '#{settings[k]}'"
+            cmd = "xdg-#{cmd} 2>/dev/null" if Gem::Platform.local.os == 'linux'
+            system(cmd)
+          end
+        end
+        dir_menu.choice('cancel') do
+        end
+      end
+    end
+
+    main_menu.choice("#{P3::TV.test_mode_enabled? ? 'Disable' : 'Enable'} Test Mode") do
+      P3::TV.enable_test_mode!(!P3::TV.test_mode_enabled?)
+    end
+
+    main_menu.choice('Reload Settings') do
+      puts 'reloaded' # will be reloaded on next loop
+    end
+
+    q = proc do
+      exit(0)
+    end
+
+    main_menu.choice(:quit, &q)
+  end
+end

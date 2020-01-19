@@ -5,7 +5,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = 'p3-tv'
-  spec.version       = '1.0.1'
+  spec.version       = '1.0.2'
   spec.authors       = ['Poul Hornsleth']
   spec.email         = ['poulh@umich.edu']
   spec.summary       = 'TV Show Organizer, Renamer, and Downloader'
@@ -22,5 +22,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'p3-eztv', '~> 0.0.8'
   spec.add_runtime_dependency 'p3-transmission', '~> 0.0.15'
   spec.add_runtime_dependency 'p3-tvdb', '~> 0.9.0'
-  spec.add_runtime_dependency 'sinatra', '~> 1.4.0'
+  spec.add_runtime_dependency 'sinatra', '~> 1.4'
 end
