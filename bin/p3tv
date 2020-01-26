@@ -95,7 +95,6 @@ loop do
 
         series_menu.choice('List TV Series') do
           settings[:series].each do |series|
-            print(series.to_h)
             cli.say(series[:name] + ' : ' + series[:network])
           end
         end
